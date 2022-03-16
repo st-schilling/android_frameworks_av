@@ -305,6 +305,7 @@ public:
     {
         return !devices().isEmpty() ? devices().itemAt(0)->hasGainController() : false;
     }
+    bool isRouted() const { return mPatchHandle != AUDIO_PATCH_HANDLE_NONE; }
 
     DeviceVector mDevices; /**< current devices this output is routed to */
     wp<AudioPolicyMix> mPolicyMix;  // non NULL when used by a dynamic policy
@@ -436,6 +437,8 @@ public:
     DeviceVector filterSupportedDevices(const DeviceVector &devices) const;
 
     uint32_t getRecommendedMuteDurationMs() const override;
+
+    void setTracksInvalidatedStatusByStrategy(product_strategy_t strategy);
 
     const sp<IOProfile> mProfile;          // I/O profile this output derives from
     audio_io_handle_t mIoHandle;           // output handle
