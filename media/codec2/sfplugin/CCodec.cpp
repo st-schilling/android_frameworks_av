@@ -871,6 +871,11 @@ void CCodec::configure(const sp<AMessage> &msg) {
                         }
                         config->mTunneled = true;
                     }
+
+                    int32_t pushBlankBuffersOnStop = 0;
+                    if (msg->findInt32(KEY_PUSH_BLANK_BUFFERS_ON_STOP, &pushBlankBuffersOnStop)) {
+                        config->mPushBlankBuffersOnStop = pushBlankBuffersOnStop == 1;
+                    }
                 }
             }
             setSurface(surface);
@@ -1526,6 +1531,9 @@ sp<PersistentSurface> CCodec::CreateOmxInputSurface() {
     using namespace android::hardware::graphics::bufferqueue::V1_0::utils;
     typedef android::hardware::media::omx::V1_0::Status OmxStatus;
     android::sp<IOmx> omx = IOmx::getService();
+    if (omx == nullptr) {
+        return nullptr;
+    }
     typedef android::hardware::graphics::bufferqueue::V1_0::
             IGraphicBufferProducer HGraphicBufferProducer;
     typedef android::hardware::media::omx::V1_0::
@@ -1803,9 +1811,16 @@ void CCodec::start() {
     if (tryAndReportOnError(setRunning) != OK) {
         return;
     }
+
+    err2 = mChannel->requestInitialInputBuffers();
+
+    if (err2 != OK) {
+        ALOGE("Initial request for Input Buffers failed");
+        mCallback->onError(err2,ACTION_CODE_FATAL);
+        return;
+    }
     mCallback->onStartCompleted();
 
-    (void)mChannel->requestInitialInputBuffers();
 }
 
 void CCodec::initiateShutdown(bool keepComponentAllocated) {
@@ -1831,7 +1846,13 @@ void CCodec::initiateStop() {
         }
         state->set(STOPPING);
     }
-
+    {
+        Mutexed<std::unique_ptr<Config>>::Locked configLocked(mConfig);
+        const std::unique_ptr<Config> &config = *configLocked;
+        if (config->mPushBlankBuffersOnStop) {
+            mChannel->pushBlankBufferToOutputSurface();
+        }
+    }
     mChannel->reset();
     (new AMessage(kWhatStop, this))->post();
 }
@@ -1917,6 +1938,13 @@ void CCodec::initiateRelease(bool sendCallback /* = true */) {
             config->mInputSurface->disconnect();
             config->mInputSurface = nullptr;
             config->mInputSurfaceDataspace = HAL_DATASPACE_UNKNOWN;
+        }
+    }
+    {
+        Mutexed<std::unique_ptr<Config>>::Locked configLocked(mConfig);
+        const std::unique_ptr<Config> &config = *configLocked;
+        if (config->mPushBlankBuffersOnStop) {
+            mChannel->pushBlankBufferToOutputSurface();
         }
     }
 
