@@ -376,26 +376,35 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
             dumpImageToDisk(timestamp, anwBuffer, anwReleaseFence);
         }
 
-        nsecs_t captureTime = (mSyncToDisplay ? readoutTimestamp : timestamp) - mTimestampOffset;
-        nsecs_t presentTime = mSyncToDisplay ?
-                syncTimestampToDisplayLocked(captureTime) : captureTime;
-        mLastCaptureTime = captureTime;
-        mLastPresentTime = presentTime;
+        if (mPreviewFrameSpacer != nullptr) {
+            res = mPreviewFrameSpacer->queuePreviewBuffer(timestamp - mTimestampOffset, transform,
+                    anwBuffer, anwReleaseFence);
+            if (res != OK) {
+                ALOGE("%s: Stream %d: Error queuing buffer to preview buffer spacer: %s (%d)",
+                        __FUNCTION__, mId, strerror(-res), res);
+                return res;
+            }
+        } else {
+            nsecs_t captureTime = (mSyncToDisplay ? readoutTimestamp : timestamp)
+                    - mTimestampOffset;
+            nsecs_t presentTime = mSyncToDisplay ?
+                    syncTimestampToDisplayLocked(captureTime) : captureTime;
 
-        setTransform(transform, true/*mayChangeMirror*/);
-        res = native_window_set_buffers_timestamp(mConsumer.get(), presentTime);
-        if (res != OK) {
-            ALOGE("%s: Stream %d: Error setting timestamp: %s (%d)",
-                  __FUNCTION__, mId, strerror(-res), res);
-            return res;
-        }
+            setTransform(transform, true/*mayChangeMirror*/);
+            res = native_window_set_buffers_timestamp(mConsumer.get(), presentTime);
+            if (res != OK) {
+                ALOGE("%s: Stream %d: Error setting timestamp: %s (%d)",
+                      __FUNCTION__, mId, strerror(-res), res);
+                return res;
+            }
 
-        queueHDRMetadata(anwBuffer->handle, currentConsumer, dynamic_range_profile);
+            queueHDRMetadata(anwBuffer->handle, currentConsumer, dynamic_range_profile);
 
-        res = queueBufferToConsumer(currentConsumer, anwBuffer, anwReleaseFence, surface_ids);
-        if (shouldLogError(res, state)) {
-            ALOGE("%s: Stream %d: Error queueing buffer to native window:"
-                  " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
+            res = queueBufferToConsumer(currentConsumer, anwBuffer, anwReleaseFence, surface_ids);
+            if (shouldLogError(res, state)) {
+                ALOGE("%s: Stream %d: Error queueing buffer to native window:"
+                      " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
+            }
         }
     }
     mLock.lock();
@@ -470,7 +479,7 @@ status_t Camera3OutputStream::configureQueueLocked() {
         return res;
     }
 
-    if ((res = configureConsumerQueueLocked(true /*allowDisplaySync*/)) != OK) {
+    if ((res = configureConsumerQueueLocked(true /*allowPreviewRespace*/)) != OK) {
         return res;
     }
 
@@ -494,7 +503,7 @@ status_t Camera3OutputStream::configureQueueLocked() {
     return OK;
 }
 
-status_t Camera3OutputStream::configureConsumerQueueLocked(bool allowDisplaySync) {
+status_t Camera3OutputStream::configureConsumerQueueLocked(bool allowPreviewRespace) {
     status_t res;
 
     mTraceFirstBuffer = true;
@@ -584,20 +593,25 @@ status_t Camera3OutputStream::configureConsumerQueueLocked(bool allowDisplaySync
     int timestampBase = getTimestampBase();
     bool isDefaultTimeBase = (timestampBase ==
             OutputConfiguration::TIMESTAMP_BASE_DEFAULT);
-    if (allowDisplaySync)  {
-        // We cannot distinguish between a SurfaceView and an ImageReader of
-        // preview buffer format. Frames are synchronized to display in both
-        // cases.
+    if (allowPreviewRespace)  {
         bool forceChoreographer = (timestampBase ==
                 OutputConfiguration::TIMESTAMP_BASE_CHOREOGRAPHER_SYNCED);
-        bool defaultToChoreographer = (isDefaultTimeBase && isConsumedByHWComposer() &&
+        bool defaultToChoreographer = (isDefaultTimeBase &&
+                isConsumedByHWComposer() &&
                 !property_get_bool("camera.disable_preview_scheduler", false));
         if (forceChoreographer || defaultToChoreographer) {
             mSyncToDisplay = true;
             mTotalBufferCount += kDisplaySyncExtraBuffer;
+        } else if (isConsumedByHWTexture() && !isVideoStream()) {
+            mPreviewFrameSpacer = new PreviewFrameSpacer(*this, mConsumer);
+            mTotalBufferCount ++;
+            res = mPreviewFrameSpacer->run(String8::format("PreviewSpacer-%d", mId).string());
+            if (res != OK) {
+                ALOGE("%s: Unable to start preview spacer", __FUNCTION__);
+                return res;
+            }
         }
     }
-
     mHandoutTotalBufferCount = 0;
     mFrameCount = 0;
     mLastTimestamp = 0;
@@ -1267,6 +1281,8 @@ nsecs_t Camera3OutputStream::syncTimestampToDisplayLocked(nsecs_t t) {
     if (res != OK) {
         ALOGE("%s: Stream %d: Error getting latest vsync event data: %s (%d)",
                 __FUNCTION__, mId, strerror(-res), res);
+        mLastCaptureTime = t;
+        mLastPresentTime = t;
         return t;
     }
 
@@ -1286,7 +1302,7 @@ nsecs_t Camera3OutputStream::syncTimestampToDisplayLocked(nsecs_t t) {
     }
 
     nsecs_t idealPresentT = t + mCaptureToPresentOffset;
-    nsecs_t expectedPresentT = 0;
+    nsecs_t expectedPresentT = mLastPresentTime;
     nsecs_t minDiff = INT64_MAX;
     // Derive minimum intervals between presentation times based on minimal
     // expected duration.
@@ -1306,7 +1322,19 @@ nsecs_t Camera3OutputStream::syncTimestampToDisplayLocked(nsecs_t t) {
             minDiff = std::abs(vsyncTime.expectedPresentationTime - idealPresentT);
         }
     }
-    return expectedPresentT;
+    mLastCaptureTime = t;
+    mLastPresentTime = expectedPresentT;
+
+    // Move the expected presentation time back by 1/3 of frame interval to
+    // mitigate the time drift. Due to time drift, if we directly use the
+    // expected presentation time, often times 2 expected presentation time
+    // falls into the same VSYNC interval.
+    return expectedPresentT - vsyncEventData.frameInterval/3;
+}
+
+bool Camera3OutputStream::shouldLogError(status_t res) {
+    Mutex::Autolock l(mLock);
+    return shouldLogError(res, mState);
 }
 
 }; // namespace camera3

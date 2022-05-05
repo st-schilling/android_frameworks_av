@@ -115,6 +115,10 @@ const String8& Camera3Device::getId() const {
 
 status_t Camera3Device::initializeCommonLocked() {
 
+    /** Start watchdog thread */
+    mCameraServiceWatchdog = new CameraServiceWatchdog();
+    mCameraServiceWatchdog->run("CameraServiceWatchdog");
+
     /** Start up status tracker thread */
     mStatusTracker = new StatusTracker(this);
     status_t res = mStatusTracker->run(String8::format("C3Dev-%s-Status", mId.string()).string());
@@ -316,7 +320,7 @@ status_t Camera3Device::disconnectImpl() {
 
         // Call close without internal mutex held, as the HAL close may need to
         // wait on assorted callbacks,etc, to complete before it can return.
-        interface->close();
+        mCameraServiceWatchdog->WATCH(interface->close());
 
         flushInflightRequests();
 
@@ -339,6 +343,12 @@ status_t Camera3Device::disconnectImpl() {
         }
     }
     ALOGI("%s: X", __FUNCTION__);
+
+    if (mCameraServiceWatchdog != NULL) {
+        mCameraServiceWatchdog->requestExit();
+        mCameraServiceWatchdog.clear();
+    }
+
     return res;
 }
 
@@ -1719,7 +1729,12 @@ status_t Camera3Device::flush(int64_t *frameNumber) {
         mSessionStatsBuilder.stopCounter();
     }
 
-    return mRequestThread->flush();
+    // Calculate expected duration for flush with additional buffer time in ms for watchdog
+    uint64_t maxExpectedDuration = (getExpectedInFlightDuration() + kBaseGetBufferWait) / 1e6;
+    status_t res = mCameraServiceWatchdog->WATCH_CUSTOM_TIMER(mRequestThread->flush(),
+            maxExpectedDuration / kCycleLengthMs, kCycleLengthMs);
+
+    return res;
 }
 
 status_t Camera3Device::prepare(int streamId) {
@@ -2857,6 +2872,7 @@ Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
         mInterface(interface),
         mListener(nullptr),
         mId(getId(parent)),
+        mRequestClearing(false),
         mFirstRepeating(false),
         mReconfigured(false),
         mDoPause(false),
@@ -3090,6 +3106,7 @@ status_t Camera3Device::RequestThread::clear(
         *lastFrameNumber = mRepeatingLastFrameNumber;
     }
     mRepeatingLastFrameNumber = hardware::camera2::ICameraDeviceUser::NO_IN_FLIGHT_REPEATING_FRAMES;
+    mRequestClearing = true;
     mRequestSignal.signal();
     return OK;
 }
@@ -4218,7 +4235,9 @@ sp<Camera3Device::CaptureRequest>
             break;
         }
 
-        res = mRequestSignal.waitRelative(mRequestLock, kRequestTimeout);
+        if (!mRequestClearing) {
+            res = mRequestSignal.waitRelative(mRequestLock, kRequestTimeout);
+        }
 
         if ((mRequestQueue.empty() && mRepeatingRequests.empty()) ||
                 exitPending()) {
@@ -4240,6 +4259,7 @@ sp<Camera3Device::CaptureRequest>
                 if (parent != nullptr) {
                     parent->mRequestBufferSM.onRequestThreadPaused();
                 }
+                mRequestClearing = false;
             }
             // Stop waiting for now and let thread management happen
             return NULL;

@@ -287,9 +287,12 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(const sp<DeviceDescript
                     sp<SwAudioOutputDescriptor> desc = mOutputs.valueFor(output);
                     // close unused outputs after device disconnection or direct outputs that have
                     // been opened by checkOutputsForDevice() to query dynamic parameters
+                    // "outputs" vector never contains duplicated outputs
                     if ((state == AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE)
                             || (((desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) != 0) &&
-                                (desc->mDirectOpenCount == 0))) {
+                                (desc->mDirectOpenCount == 0))
+                            || (((desc->mFlags & AUDIO_OUTPUT_FLAG_SPATIALIZER) != 0) &&
+                                !isOutputOnlyAvailableRouteToSomeDevice(desc))) {
                         clearAudioSourcesForOutput(output);
                         closeOutput(output);
                     }
@@ -2115,11 +2118,15 @@ status_t AudioPolicyManager::startSource(const sp<SwAudioOutputDescriptor>& outp
 
         // apply volume rules for current stream and device if necessary
         auto &curves = getVolumeCurves(client->attributes());
-        checkAndSetVolume(curves, client->volumeSource(),
+        if (NO_ERROR != checkAndSetVolume(curves, client->volumeSource(),
                           curves.getVolumeIndex(outputDesc->devices().types()),
                           outputDesc,
                           outputDesc->devices().types(), 0 /*delay*/,
-                          outputDesc->useHwGain() /*force*/);
+                          outputDesc->useHwGain() /*force*/)) {
+            // request AudioService to reinitialize the volume curves asynchronously
+            ALOGE("checkAndSetVolume failed, requesting volume range init");
+            mpClientInterface->onVolumeRangeInitRequest();
+        };
 
         // update the outputs if starting an output with a stream that can affect notification
         // routing
@@ -5361,6 +5368,29 @@ void AudioPolicyManager::checkVirtualizerClientRoutes() {
     }
 }
 
+
+bool AudioPolicyManager::isOutputOnlyAvailableRouteToSomeDevice(
+        const sp<SwAudioOutputDescriptor>& outputDesc) {
+    if (outputDesc->isDuplicated()) {
+        return false;
+    }
+    DeviceVector devices = outputDesc->supportedDevices();
+    for (size_t i = 0; i < mOutputs.size(); i++) {
+        sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
+        if (desc == outputDesc || desc->isDuplicated()) {
+            continue;
+        }
+        DeviceVector sharedDevices = desc->filterSupportedDevices(devices);
+        if (!sharedDevices.isEmpty()
+                && (desc->devicesSupportEncodedFormats(sharedDevices.types())
+                    == outputDesc->devicesSupportEncodedFormats(sharedDevices.types()))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
 status_t AudioPolicyManager::getSpatializerOutput(const audio_config_base_t *mixerConfig,
                                                         const audio_attributes_t *attr,
                                                         audio_io_handle_t *output) {
@@ -5376,80 +5406,67 @@ status_t AudioPolicyManager::getSpatializerOutput(const audio_config_base_t *mix
     }
     if (!canBeSpatializedInt(
             attr, configPtr, devicesTypeAddress)) {
-        ALOGW("%s provided attributes or mixer config cannot be spatialized", __func__);
+        ALOGV("%s provided attributes or mixer config cannot be spatialized", __func__);
         return BAD_VALUE;
     }
 
     sp<IOProfile> profile =
             getSpatializerOutputProfile(configPtr, devicesTypeAddress);
     if (profile == nullptr) {
-        ALOGW("%s no suitable output profile for provided attributes or mixer config", __func__);
+        ALOGV("%s no suitable output profile for provided attributes or mixer config", __func__);
         return BAD_VALUE;
     }
 
-    if (mSpatializerOutput != nullptr && mSpatializerOutput->mProfile == profile
-            && configPtr != nullptr
-            && configPtr->channel_mask == mSpatializerOutput->mMixerChannelMask) {
-        *output = mSpatializerOutput->mIoHandle;
-        ALOGV("%s returns current spatializer output %d", __func__, *output);
-        return NO_ERROR;
-    }
-    mSpatializerOutput.clear();
+    std::vector<sp<SwAudioOutputDescriptor>> spatializerOutputs;
     for (size_t i = 0; i < mOutputs.size(); i++) {
         sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
-        if (!desc->isDuplicated() && desc->mProfile == profile) {
-            ALOGV("%s found output %d for spatializer profile", __func__, desc->mIoHandle);
-            mSpatializerOutput = desc;
-            break;
+        if (!desc->isDuplicated()
+                && (desc->mFlags & AUDIO_OUTPUT_FLAG_SPATIALIZER) != 0) {
+            spatializerOutputs.push_back(desc);
+            ALOGV("%s adding opened spatializer Output %d", __func__, desc->mIoHandle);
         }
     }
-    if (mSpatializerOutput == nullptr) {
-        ALOGW("%s no opened spatializer output for profile %s",
-                __func__, profile->getName().c_str());
-        return BAD_VALUE;
+    mSpatializerOutput.clear();
+    bool outputsChanged = false;
+    for (const auto& desc : spatializerOutputs) {
+        if (desc->mProfile == profile
+                && (configPtr == nullptr
+                   || configPtr->channel_mask == desc->mMixerChannelMask)) {
+            mSpatializerOutput = desc;
+            ALOGV("%s reusing current spatializer output %d", __func__, desc->mIoHandle);
+        } else {
+            ALOGV("%s closing spatializerOutput output %d to match channel mask %#x"
+                    " and devices %s", __func__, desc->mIoHandle,
+                    configPtr != nullptr ? configPtr->channel_mask : 0,
+                    devices.toString().c_str());
+            closeOutput(desc->mIoHandle);
+            outputsChanged = true;
+        }
     }
 
-    if (configPtr != nullptr
-            && configPtr->channel_mask != mSpatializerOutput->mMixerChannelMask) {
-        audio_config_base_t savedMixerConfig = {
-            .sample_rate = mSpatializerOutput->getSamplingRate(),
-            .format = mSpatializerOutput->getFormat(),
-            .channel_mask = mSpatializerOutput->mMixerChannelMask,
-        };
-        DeviceVector savedDevices = mSpatializerOutput->devices();
-
-        ALOGV("%s reopening spatializer output to match channel mask %#x (current mask %#x)",
-            __func__, configPtr->channel_mask, mSpatializerOutput->mMixerChannelMask);
-
-        closeOutput(mSpatializerOutput->mIoHandle);
-        //from now on mSpatializerOutput is null
-
+    if (mSpatializerOutput == nullptr) {
         sp<SwAudioOutputDescriptor> desc =
                 openOutputWithProfileAndDevice(profile, devices, mixerConfig);
-        if (desc == nullptr) {
-            // re open the spatializer output with previous channel mask
-            desc = openOutputWithProfileAndDevice(profile, savedDevices, &savedMixerConfig);
-            if (desc == nullptr) {
-                ALOGE("%s failed to restore mSpatializerOutput with previous config", __func__);
-            } else {
-                mSpatializerOutput = desc;
-            }
-            mPreviousOutputs = mOutputs;
-            mpClientInterface->onAudioPortListUpdate();
-            *output = AUDIO_IO_HANDLE_NONE;
-            ALOGW("%s could not open spatializer output with requested config", __func__);
-            return BAD_VALUE;
+        if (desc != nullptr) {
+            mSpatializerOutput = desc;
+            outputsChanged = true;
         }
-        mSpatializerOutput = desc;
-        mPreviousOutputs = mOutputs;
-        mpClientInterface->onAudioPortListUpdate();
     }
 
     checkVirtualizerClientRoutes();
 
+    if (outputsChanged) {
+        mPreviousOutputs = mOutputs;
+        mpClientInterface->onAudioPortListUpdate();
+    }
+
+    if (mSpatializerOutput == nullptr) {
+        ALOGV("%s could not open spatializer output with requested config", __func__);
+        return BAD_VALUE;
+    }
     *output = mSpatializerOutput->mIoHandle;
-    ALOGV("%s returns new spatializer output %d", __func__, *output);
-    return NO_ERROR;
+    ALOGV("%s returning new spatializer output %d", __func__, *output);
+    return OK;
 }
 
 status_t AudioPolicyManager::releaseSpatializerOutput(audio_io_handle_t output) {
@@ -5460,9 +5477,12 @@ status_t AudioPolicyManager::releaseSpatializerOutput(audio_io_handle_t output) 
         return BAD_VALUE;
     }
 
-    mSpatializerOutput.clear();
-
-    checkVirtualizerClientRoutes();
+    if (!isOutputOnlyAvailableRouteToSomeDevice(mSpatializerOutput)) {
+        ALOGV("%s closing spatializer output %d", __func__, mSpatializerOutput->mIoHandle);
+        closeOutput(mSpatializerOutput->mIoHandle);
+        //from now on mSpatializerOutput is null
+        checkVirtualizerClientRoutes();
+    }
 
     return NO_ERROR;
 }
@@ -5539,6 +5559,7 @@ status_t AudioPolicyManager::initialize() {
         return status;
     }
 
+    mEngine->updateDeviceSelectionCache();
     mCommunnicationStrategy = mEngine->getProductStrategyForAttributes(
         mEngine->getAttributesForStreamType(AUDIO_STREAM_VOICE_CALL));
 
@@ -5737,6 +5758,21 @@ void AudioPolicyManager::onNewAudioModulesAvailableInt(DeviceVector *newDevices)
             }
             inputDesc->close();
         }
+    }
+
+    // Check if spatializer outputs can be closed until used.
+    // mOutputs vector never contains duplicated outputs at this point.
+    std::vector<audio_io_handle_t> outputsClosed;
+    for (size_t i = 0; i < mOutputs.size(); i++) {
+        sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
+        if ((desc->mFlags & AUDIO_OUTPUT_FLAG_SPATIALIZER) != 0
+                && !isOutputOnlyAvailableRouteToSomeDevice(desc)) {
+            outputsClosed.push_back(desc->mIoHandle);
+            desc->close();
+        }
+    }
+    for (auto output : outputsClosed) {
+        removeOutput(output);
     }
 }
 
@@ -6431,6 +6467,18 @@ bool AudioPolicyManager::isScoRequestedForComm() const {
     }
     return false;
 }
+
+bool AudioPolicyManager::isHearingAidUsedForComm() const {
+    DeviceVector devices = mEngine->getOutputDevicesForStream(AUDIO_STREAM_VOICE_CALL,
+                                                       true /*fromCache*/);
+    for (const auto &device : devices) {
+        if (device->type() == AUDIO_DEVICE_OUT_HEARING_AID) {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 void AudioPolicyManager::checkA2dpSuspend()
 {
@@ -7229,19 +7277,26 @@ status_t AudioPolicyManager::checkAndSetVolume(IVolumeCurves &curves,
     bool isBtScoVolSrc = (volumeSource != VOLUME_SOURCE_NONE) && (btScoVolSrc == volumeSource);
 
     bool isScoRequested = isScoRequestedForComm();
+    bool isHAUsed = isHearingAidUsedForComm();
+
     // do not change in call volume if bluetooth is connected and vice versa
     // if sco and call follow same curves, bypass forceUseForComm
     if ((callVolSrc != btScoVolSrc) &&
             ((isVoiceVolSrc && isScoRequested) ||
-             (isBtScoVolSrc && !isScoRequested))) {
+             (isBtScoVolSrc && !(isScoRequested || isHAUsed)))) {
         ALOGV("%s cannot set volume group %d volume when is%srequested for comm", __func__,
-             volumeSource, isScoRequested ? " " : "n ot ");
+             volumeSource, isScoRequested ? " " : " not ");
         // Do not return an error here as AudioService will always set both voice call
         // and bluetooth SCO volumes due to stream aliasing.
         return NO_ERROR;
     }
     if (deviceTypes.empty()) {
         deviceTypes = outputDesc->devices().types();
+    }
+
+    if (curves.getVolumeIndexMin() < 0 || curves.getVolumeIndexMax() < 0) {
+        ALOGE("invalid volume index range");
+        return BAD_VALUE;
     }
 
     float volumeDb = computeVolume(curves, volumeSource, index, deviceTypes);

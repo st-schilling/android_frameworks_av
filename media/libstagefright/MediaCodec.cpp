@@ -186,9 +186,12 @@ static const char *kCodecShapingEnhanced = "android.media.mediacodec.shaped";
 // XXX suppress until we get our representation right
 static bool kEmitHistogram = false;
 
+static int64_t getId(IResourceManagerClient const * client) {
+    return (int64_t) client;
+}
 
 static int64_t getId(const std::shared_ptr<IResourceManagerClient> &client) {
-    return (int64_t) client.get();
+    return getId(client.get());
 }
 
 static bool isResourceError(status_t err) {
@@ -205,12 +208,20 @@ static const C2MemoryUsage kDefaultReadWriteUsage{
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ResourceManagerClient : public BnResourceManagerClient {
-    explicit ResourceManagerClient(MediaCodec* codec) : mMediaCodec(codec) {}
+    explicit ResourceManagerClient(MediaCodec* codec, int32_t pid) :
+            mMediaCodec(codec), mPid(pid) {}
 
     Status reclaimResource(bool* _aidl_return) override {
         sp<MediaCodec> codec = mMediaCodec.promote();
         if (codec == NULL) {
-            // codec is already gone.
+            // Codec is already gone, so remove the resources as well
+            ::ndk::SpAIBinder binder(AServiceManager_getService("media.resource_manager"));
+            std::shared_ptr<IResourceManagerService> service =
+                    IResourceManagerService::fromBinder(binder);
+            if (service == nullptr) {
+                ALOGW("MediaCodec::ResourceManagerClient unable to find ResourceManagerService");
+            }
+            service->removeClient(mPid, getId(this));
             *_aidl_return = true;
             return Status::ok();
         }
@@ -247,6 +258,7 @@ struct ResourceManagerClient : public BnResourceManagerClient {
 
 private:
     wp<MediaCodec> mMediaCodec;
+    int32_t mPid;
 
     DISALLOW_EVIL_CONSTRUCTORS(ResourceManagerClient);
 };
@@ -820,7 +832,7 @@ MediaCodec::MediaCodec(
       mGetCodecBase(getCodecBase),
       mGetCodecInfo(getCodecInfo) {
     mResourceManagerProxy = new ResourceManagerServiceProxy(pid, uid,
-            ::ndk::SharedRefBase::make<ResourceManagerClient>(this));
+            ::ndk::SharedRefBase::make<ResourceManagerClient>(this, pid));
     if (!mGetCodecBase) {
         mGetCodecBase = [](const AString &name, const char *owner) {
             return GetCodecBase(name, owner);
@@ -1460,9 +1472,14 @@ status_t MediaCodec::init(const AString &name) {
     if (mDomain == DOMAIN_VIDEO) {
         // video codec needs dedicated looper
         if (mCodecLooper == NULL) {
+            status_t err = OK;
             mCodecLooper = new ALooper;
             mCodecLooper->setName("CodecLooper");
-            mCodecLooper->start(false, false, ANDROID_PRIORITY_AUDIO);
+            err = mCodecLooper->start(false, false, ANDROID_PRIORITY_AUDIO);
+            if (OK != err) {
+                ALOGE("Codec Looper failed to start");
+                return err;
+            }
         }
 
         mCodecLooper->registerHandler(mCodec);
@@ -3048,8 +3065,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     CHECK(msg->findInt32("err", &err));
                     CHECK(msg->findInt32("actionCode", &actionCode));
 
-                    ALOGE("Codec reported err %#x, actionCode %d, while in state %d/%s",
-                            err, actionCode, mState, stateString(mState).c_str());
+                    ALOGE("Codec reported err %#x/%s, actionCode %d, while in state %d/%s",
+                                              err, StrMediaError(err).c_str(), actionCode,
+                                              mState, stateString(mState).c_str());
                     if (err == DEAD_OBJECT) {
                         mFlags |= kFlagSawMediaServerDie;
                         mFlags &= ~kFlagIsComponentAllocated;
