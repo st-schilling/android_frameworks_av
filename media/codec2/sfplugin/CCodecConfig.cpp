@@ -400,10 +400,10 @@ void CCodecConfig::initializeStandardParams() {
     // Rotation
     // Note: SDK rotation is clock-wise, while C2 rotation is counter-clock-wise
     add(ConfigMapper(KEY_ROTATION, C2_PARAMKEY_VUI_ROTATION, "value")
-        .limitTo(D::VIDEO & D::CODED)
+        .limitTo((D::VIDEO | D::IMAGE) & D::CODED)
         .withMappers(negate, negate));
     add(ConfigMapper(KEY_ROTATION, C2_PARAMKEY_ROTATION, "value")
-        .limitTo(D::VIDEO & D::RAW)
+        .limitTo((D::VIDEO | D::IMAGE) & D::RAW)
         .withMappers(negate, negate));
 
     // android 'video-scaling'
@@ -965,11 +965,37 @@ void CCodecConfig::initializeStandardParams() {
             return value == 0 ? C2_FALSE : C2_TRUE;
         }));
 
+    add(ConfigMapper("android._tunnel-peek-set-legacy", C2_PARAMKEY_TUNNEL_PEEK_MODE, "value")
+        .limitTo(D::PARAM & D::VIDEO & D::DECODER)
+        .withMapper([](C2Value v) -> C2Value {
+          int32_t value = 0;
+          (void)v.get(&value);
+          return value == 0
+              ? C2Value(C2PlatformConfig::SPECIFIED_PEEK)
+              : C2Value(C2PlatformConfig::UNSPECIFIED_PEEK);
+        }));
+
     add(ConfigMapper(KEY_VIDEO_QP_AVERAGE, C2_PARAMKEY_AVERAGE_QP, "value")
         .limitTo(D::ENCODER & D::VIDEO & D::READ));
 
     add(ConfigMapper(KEY_PICTURE_TYPE, C2_PARAMKEY_PICTURE_TYPE, "value")
-        .limitTo(D::ENCODER & D::VIDEO & D::READ));
+        .limitTo(D::ENCODER & D::VIDEO & D::READ)
+        .withMappers([](C2Value v) -> C2Value {
+            int32_t sdk;
+            C2Config::picture_type_t c2;
+            if (v.get(&sdk) && C2Mapper::map(sdk, &c2)) {
+                return C2Value(c2);
+            }
+            return C2Value();
+        }, [](C2Value v) -> C2Value {
+            C2Config::picture_type_t c2;
+            int32_t sdk = PICTURE_TYPE_UNKNOWN;
+            using C2ValueType=typename _c2_reduce_enum_to_underlying_type<decltype(c2)>::type;
+            if (v.get((C2ValueType*)&c2) && C2Mapper::map(c2, &sdk)) {
+                return sdk;
+            }
+            return C2Value();
+        }));
 
     /* still to do
        not yet used by MediaCodec, but defined as MediaFormat
