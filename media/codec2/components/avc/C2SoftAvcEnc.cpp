@@ -656,7 +656,8 @@ void  C2SoftAvcEnc::initEncParams() {
     mEntropyMode = DEFAULT_ENTROPY_MODE;
     mBframes = DEFAULT_B_FRAMES;
 
-    mTimeStart = mTimeEnd = systemTime();
+    gettimeofday(&mTimeStart, nullptr);
+    gettimeofday(&mTimeEnd, nullptr);
 }
 
 c2_status_t C2SoftAvcEnc::setDimensions() {
@@ -1514,8 +1515,7 @@ c2_status_t C2SoftAvcEnc::setEncodeArgs(
             vPlane = uPlane + yPlaneSize / 4;
             yStride = width;
             uStride = vStride = yStride / 2;
-            ConvertRGBToPlanarYUV(yPlane, yStride, height, conversionBuffer.size(), *input,
-                                  mColorAspects->matrix, mColorAspects->range);
+            ConvertRGBToPlanarYUV(yPlane, yStride, height, conversionBuffer.size(), *input);
             break;
         }
         case C2PlanarLayout::TYPE_YUV: {
@@ -1650,7 +1650,8 @@ void C2SoftAvcEnc::process(
     work->worklets.front()->output.flags = work->input.flags;
 
     IV_STATUS_T status;
-    nsecs_t timeDelay = 0;
+    WORD32 timeDelay = 0;
+    WORD32 timeTaken = 0;
     uint64_t workIndex = work->input.ordinal.frameIndex.peekull();
 
     // Initialize encoder if not already initialized
@@ -1816,10 +1817,10 @@ void C2SoftAvcEnc::process(
         //         mInFile, s_encode_ip.s_inp_buf.apv_bufs[0],
         //         (mHeight * mStride * 3 / 2));
 
+        GETTIME(&mTimeStart, nullptr);
         /* Compute time elapsed between end of previous decode()
          * to start of current decode() */
-        mTimeStart = systemTime();
-        timeDelay = mTimeStart - mTimeEnd;
+        TIME_DIFF(mTimeEnd, mTimeStart, timeDelay);
         status = ive_api_function(mCodecCtx, &s_video_encode_ip, &s_video_encode_op);
 
         if (IV_SUCCESS != status) {
@@ -1843,11 +1844,11 @@ void C2SoftAvcEnc::process(
         mBuffers[ps_encode_ip->s_inp_buf.apv_bufs[0]] = inputBuffer;
     }
 
+    GETTIME(&mTimeEnd, nullptr);
     /* Compute time taken for decode() */
-    mTimeEnd = systemTime();
-    nsecs_t timeTaken = mTimeEnd - mTimeStart;
+    TIME_DIFF(mTimeStart, mTimeEnd, timeTaken);
 
-    ALOGV("timeTaken=%" PRId64 "d delay=%" PRId64 " numBytes=%6d", timeTaken, timeDelay,
+    ALOGV("timeTaken=%6d delay=%6d numBytes=%6d", timeTaken, timeDelay,
             ps_encode_op->s_out_buf.u4_bytes);
 
     void *freed = ps_encode_op->s_inp_buf.apv_bufs[0];

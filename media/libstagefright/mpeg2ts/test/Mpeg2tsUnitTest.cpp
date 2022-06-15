@@ -26,8 +26,9 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaDataBase.h>
 #include <media/stagefright/foundation/AUtils.h>
-#include <mpeg2ts/AnotherPacketSource.h>
-#include <mpeg2ts/ATSParser.h>
+
+#include "mpeg2ts/ATSParser.h"
+#include "mpeg2ts/AnotherPacketSource.h"
 
 #include "Mpeg2tsUnitTestEnvironment.h"
 

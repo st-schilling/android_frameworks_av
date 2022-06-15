@@ -14,7 +14,7 @@
      limitations under the License.
 -->
 
-<audioPolicyConfiguration version="7.0" xmlns:xi="http://www.w3.org/2001/XInclude">
+<audioPolicyConfiguration version="1.0" xmlns:xi="http://www.w3.org/2001/XInclude">
     <globalConfiguration speaker_drc_enabled="true"/>
 
     <modules>
@@ -41,18 +41,8 @@
                 </mixPort>
                 <mixPort name="mixport_bt_hfp_input" role="sink">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="8000 11025 16000 44100 48000"
-                             channelMasks="AUDIO_CHANNEL_IN_STEREO AUDIO_CHANNEL_IN_MONO"/>
-                </mixPort>
-                <mixPort name="voip_tx" role="sink"
-                         flags="AUDIO_INPUT_FLAG_VOIP_TX">
-                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="8000 16000 32000 48000" channelMasks="AUDIO_CHANNEL_IN_MONO"/>
-                </mixPort>
-                <mixPort name="voip_rx" role="source"
-                         flags="AUDIO_OUTPUT_FLAG_VOIP_RX">
-                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                           samplingRates="8000 16000 32000 48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                             samplingRates="8000,11025,16000,44100,48000"
+                             channelMasks="AUDIO_CHANNEL_IN_STEREO,AUDIO_CHANNEL_IN_MONO"/>
                 </mixPort>
             </mixPorts>
             <devicePorts>
@@ -60,8 +50,7 @@
                 </devicePort>
                 <devicePort tagName="Built-In Mic" type="AUDIO_DEVICE_IN_BUILTIN_MIC" role="source">
                 </devicePort>
-                <devicePort tagName="Hdmi" type="AUDIO_DEVICE_OUT_HDMI" role="sink"
-                            encodedFormats="AUDIO_FORMAT_AC3">
+                <devicePort tagName="Hdmi" type="AUDIO_DEVICE_OUT_HDMI" role="sink">
                 </devicePort>
                 <devicePort tagName="Hdmi-In Mic" type="AUDIO_DEVICE_IN_HDMI" role="source">
                 </devicePort>
@@ -74,15 +63,13 @@
             </devicePorts>
             <routes>
                 <route type="mix" sink="Speaker"
-                       sources="primary output,voip_rx"/>
+                       sources="primary output"/>
                 <route type="mix" sink="primary input"
                        sources="Built-In Mic,Hdmi-In Mic"/>
-                <route type="mix" sink="voip_tx"
-                       sources="Built-In Mic"/>
                 <route type="mix" sink="Hdmi"
                        sources="primary output"/>
                 <route type="mix" sink="BT SCO"
-                       sources="mixport_bt_hfp_output,voip_rx"/>
+                       sources="mixport_bt_hfp_output"/>
                 <route type="mix" sink="mixport_bt_hfp_input"
                        sources="BT SCO Headset Mic"/>
             </routes>

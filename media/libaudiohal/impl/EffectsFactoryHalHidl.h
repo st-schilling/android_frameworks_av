@@ -20,15 +20,17 @@
 #include PATH(android/hardware/audio/effect/FILE_VERSION/IEffectsFactory.h)
 #include <media/audiohal/EffectsFactoryHalInterface.h>
 
-#include "EffectConversionHelperHidl.h"
+#include "ConversionHelperHidl.h"
 
 namespace android {
 namespace effect {
+namespace CPP_VERSION {
 
 using ::android::hardware::hidl_vec;
+using ::android::CPP_VERSION::ConversionHelperHidl;
 using namespace ::android::hardware::audio::effect::CPP_VERSION;
 
-class EffectsFactoryHalHidl : public EffectsFactoryHalInterface, public EffectConversionHelperHidl
+class EffectsFactoryHalHidl : public EffectsFactoryHalInterface, public ConversionHelperHidl
 {
   public:
     EffectsFactoryHalHidl(sp<IEffectsFactory> effectsFactory);
@@ -42,9 +44,6 @@ class EffectsFactoryHalHidl : public EffectsFactoryHalInterface, public EffectCo
 
     virtual status_t getDescriptor(const effect_uuid_t *pEffectUuid,
             effect_descriptor_t *pDescriptor);
-
-    virtual status_t getDescriptors(const effect_uuid_t *pEffectType,
-                                    std::vector<effect_descriptor_t> *descriptors);
 
     // Creates an effect engine of the specified type.
     // To release the effect engine, it is necessary to release references
@@ -68,6 +67,7 @@ class EffectsFactoryHalHidl : public EffectsFactoryHalInterface, public EffectCo
     status_t queryAllDescriptors();
 };
 
+} // namespace CPP_VERSION
 } // namespace effect
 } // namespace android
 

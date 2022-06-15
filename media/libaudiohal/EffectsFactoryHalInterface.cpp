@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <string>
-
 #include <media/audiohal/EffectsFactoryHalInterface.h>
 #include <media/audiohal/FactoryHalHidl.h>
 
@@ -23,10 +21,8 @@ namespace android {
 
 // static
 sp<EffectsFactoryHalInterface> EffectsFactoryHalInterface::create() {
-    using namespace std::string_literals;
     return createPreferredImpl<EffectsFactoryHalInterface>(
-            std::make_pair("android.hardware.audio.effect"s, "IEffectsFactory"s),
-            std::make_pair("android.hardware.audio"s, "IDevicesFactory"s));
+            "android.hardware.audio.effect", "IEffectsFactory");
 }
 
 // static

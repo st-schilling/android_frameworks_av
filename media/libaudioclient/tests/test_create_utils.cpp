@@ -68,6 +68,10 @@ bool checkVersion(FILE *inputFile, const char *version)
     return true;
 }
 
+void callback(int event __unused, void* user __unused, void *info __unused)
+{
+}
+
 int main(int argc, char **argv, test_func_t testFunc)
 {
     FILE *inputFile = nullptr;

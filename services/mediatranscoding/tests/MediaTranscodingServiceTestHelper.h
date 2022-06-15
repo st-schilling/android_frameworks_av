@@ -259,7 +259,9 @@ std::ostream& operator<<(std::ostream& str, const EventTracker::Event& v) {
 static constexpr bool success = true;
 static constexpr bool fail = false;
 
-struct TestClientCallback : public BnTranscodingClientCallback, public EventTracker {
+struct TestClientCallback : public BnTranscodingClientCallback,
+                            public EventTracker,
+                            public std::enable_shared_from_this<TestClientCallback> {
     TestClientCallback(const char* packageName, int32_t id)
           : mClientId(id), mClientPid(PID(id)), mClientUid(UID(id)), mPackageName(packageName) {
         ALOGI("TestClientCallback %d created: pid %d, uid %d", id, PID(id), UID(id));
@@ -346,8 +348,8 @@ struct TestClientCallback : public BnTranscodingClientCallback, public EventTrac
         ALOGD("registering %s with uid %d", packageName, mClientUid);
 
         std::shared_ptr<ITranscodingClient> client;
-        Status status = service->registerClient(ref<TestClientCallback>(), kClientName, packageName,
-                                                &client);
+        Status status =
+                service->registerClient(shared_from_this(), kClientName, packageName, &client);
 
         mClient = status.isOk() ? client : nullptr;
         return status;

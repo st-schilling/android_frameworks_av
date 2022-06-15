@@ -1,5 +1,5 @@
 /**
- * Copyright 2021, The Android Open Source Project
+ * Copyright 2020, The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,7 @@
 
 package android.media.tv.tuner;
 
-import android.hardware.tv.tuner.FrontendEventType;
-import android.hardware.tv.tuner.FrontendScanMessage;
-import android.hardware.tv.tuner.FrontendScanMessageType;
+import android.media.tv.tuner.TunerFrontendScanMessage;
 
 /**
  * TunerFrontendCallback interface handles tuner frontend related callbacks.
@@ -26,14 +24,13 @@ import android.hardware.tv.tuner.FrontendScanMessageType;
  * {@hide}
  */
 interface ITunerFrontendCallback {
-    /**
+        /**
      * Notify the client that a new event happened on the frontend.
      */
-    void onEvent(in FrontendEventType frontendEventType);
+    void onEvent(in int frontendEventType);
 
     /**
      * notify the client of scan messages.
      */
-    void onScanMessage(in FrontendScanMessageType messageType,
-        in FrontendScanMessage message);
+    void onScanMessage(in int messageType, in TunerFrontendScanMessage message);
 }

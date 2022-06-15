@@ -228,10 +228,10 @@ c2_status_t C2SyncVariables::waitForChange(uint32_t waitId, c2_nsecs_t timeoutNs
     tv.tv_nsec = timeoutNs % 1000000000;
 
     int ret =  syscall(__NR_futex, &mCond, FUTEX_WAIT, waitId, &tv, NULL, 0);
-    if (ret == 0 || errno == EAGAIN) {
+    if (ret == 0 || ret == EAGAIN) {
         return C2_OK;
     }
-    if (errno == EINTR || errno == ETIMEDOUT) {
+    if (ret == EINTR || ret == ETIMEDOUT) {
         return C2_TIMED_OUT;
     }
     return C2_BAD_VALUE;

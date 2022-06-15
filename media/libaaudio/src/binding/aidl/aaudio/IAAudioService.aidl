@@ -78,6 +78,4 @@ interface IAAudioService {
 
     int unregisterAudioThread(int streamHandle,
                               int clientThreadId);
-
-    int exitStandby(int streamHandle, out Endpoint endpoint);
 }

@@ -47,7 +47,7 @@ cc_library {
     ],
 
     static_libs: [
-        "mediatranscoding_aidl_interface-ndk",
+        "mediatranscoding_aidl_interface-ndk_platform",
     ],
 
     cflags: [
@@ -80,7 +80,7 @@ cc_binary {
     ],
 
     static_libs: [
-        "mediatranscoding_aidl_interface-ndk",
+        "mediatranscoding_aidl_interface-ndk_platform",
     ],
 
     cflags: [

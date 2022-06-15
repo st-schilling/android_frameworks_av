@@ -29,5 +29,4 @@ parcelable CreateEffectResponse {
     boolean enabled;
     @nullable IEffect effect;
     EffectDescriptor desc;
-    boolean alreadyExists;
 }

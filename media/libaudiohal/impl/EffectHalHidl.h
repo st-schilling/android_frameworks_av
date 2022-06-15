@@ -23,17 +23,16 @@
 #include <fmq/MessageQueue.h>
 #include <system/audio_effect.h>
 
-#include "EffectConversionHelperHidl.h"
-
 using ::android::hardware::EventFlag;
 using ::android::hardware::MessageQueue;
 
 namespace android {
 namespace effect {
+namespace CPP_VERSION {
 
 using namespace ::android::hardware::audio::effect::CPP_VERSION;
 
-class EffectHalHidl : public EffectHalInterface, public EffectConversionHelperHidl
+class EffectHalHidl : public EffectHalInterface
 {
   public:
     // Set the input buffer.
@@ -64,7 +63,7 @@ class EffectHalHidl : public EffectHalInterface, public EffectConversionHelperHi
 
     virtual status_t dump(int fd);
 
-    virtual uint64_t effectId() const { return mEffectId; }
+    uint64_t effectId() const { return mEffectId; }
 
   private:
     friend class EffectsFactoryHalHidl;
@@ -78,6 +77,8 @@ class EffectHalHidl : public EffectHalInterface, public EffectConversionHelperHi
     std::unique_ptr<StatusMQ> mStatusMQ;
     EventFlag* mEfGroup;
     bool mIsInput = false;
+
+    static status_t analyzeResult(const Result& result);
 
     // Can not be constructed directly by clients.
     EffectHalHidl(const sp<IEffect>& effect, uint64_t effectId);
@@ -95,6 +96,7 @@ class EffectHalHidl : public EffectHalInterface, public EffectConversionHelperHi
     status_t setProcessBuffers();
 };
 
+} // namespace CPP_VERSION
 } // namespace effect
 } // namespace android
 

@@ -307,7 +307,7 @@ void C2SoftAmrWbEnc::process(
         work->result = wView.error();
         return;
     }
-    int64_t outTimeStamp =
+    uint64_t outTimeStamp =
         mProcessedSamples * 1000000ll / mIntf->getSampleRate();
     size_t inPos = 0;
     size_t outPos = 0;
@@ -341,7 +341,7 @@ void C2SoftAmrWbEnc::process(
     ALOGV("causal sample size %d", mFilledLen);
     if (mIsFirst && outPos != 0) {
         mIsFirst = false;
-        mAnchorTimeStamp = work->input.ordinal.timestamp.peekll();
+        mAnchorTimeStamp = work->input.ordinal.timestamp.peekull();
     }
     fillEmptyWork(work);
     if (outPos != 0) {

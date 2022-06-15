@@ -131,8 +131,7 @@ extern "C" int EffectCreate(const effect_uuid_t *uuid,
                             int32_t ioId,
                             effect_handle_t *pHandle) {
     int ret;
-    (void)sessionId;
-    (void)ioId;
+    int i;
 
     ALOGV("EffectLibCreateEffect start");
 
@@ -161,7 +160,7 @@ extern "C" int EffectCreate(const effect_uuid_t *uuid,
     pContext->state = EQUALIZER_STATE_INITIALIZED;
 
     ALOGV("EffectLibCreateEffect %p, size %d",
-         pContext, (int)(AudioEqualizer::GetInstanceSize(kNumBands)+sizeof(EqualizerContext)));
+         pContext, AudioEqualizer::GetInstanceSize(kNumBands)+sizeof(EqualizerContext));
 
     return 0;
 
@@ -295,6 +294,7 @@ void Equalizer_getConfig(EqualizerContext *pContext, effect_config_t *pConfig)
 
 int Equalizer_init(EqualizerContext *pContext)
 {
+    int status;
 
     ALOGV("Equalizer_init start");
 
@@ -630,6 +630,7 @@ extern "C" int Equalizer_command(effect_handle_t self, uint32_t cmdCode, uint32_
         void *pCmdData, uint32_t *replySize, void *pReplyData) {
 
     android::EqualizerContext * pContext = (android::EqualizerContext *) self;
+    int retsize;
 
     if (pContext == NULL || pContext->state == EQUALIZER_STATE_UNINITIALIZED) {
         return -EINVAL;
@@ -749,13 +750,13 @@ const struct effect_interface_s gEqualizerInterface = {
         NULL
 };
 
-__attribute__ ((visibility ("default")))
+
 audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM = {
-    .tag = AUDIO_EFFECT_LIBRARY_TAG,
-    .version = EFFECT_LIBRARY_API_VERSION,
-    .name = "Test Equalizer Library",
-    .implementor = "The Android Open Source Project",
-    .create_effect = android::EffectCreate,
-    .release_effect = android::EffectRelease,
-    .get_descriptor = android::EffectGetDescriptor,
+    tag : AUDIO_EFFECT_LIBRARY_TAG,
+    version : EFFECT_LIBRARY_API_VERSION,
+    name : "Test Equalizer Library",
+    implementor : "The Android Open Source Project",
+    create_effect : android::EffectCreate,
+    release_effect : android::EffectRelease,
+    get_descriptor : android::EffectGetDescriptor,
 };

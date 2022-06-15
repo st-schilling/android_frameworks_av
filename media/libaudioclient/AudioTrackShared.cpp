@@ -409,7 +409,7 @@ void ClientProxy::binderDied()
         android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
         // it seems that a FUTEX_WAKE_PRIVATE will not wake a FUTEX_WAIT, even within same process
         (void) syscall(__NR_futex, &cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
-                INT_MAX);
+                1);
     }
 }
 
@@ -419,7 +419,7 @@ void ClientProxy::interrupt()
     if (!(android_atomic_or(CBLK_INTERRUPT, &cblk->mFlags) & CBLK_INTERRUPT)) {
         android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
         (void) syscall(__NR_futex, &cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
-                INT_MAX);
+                1);
     }
 }
 
@@ -490,8 +490,6 @@ bool AudioTrackClientProxy::getStreamEndDone() const {
 status_t AudioTrackClientProxy::waitStreamEndDone(const struct timespec *requested)
 {
     struct timespec total;          // total elapsed time spent waiting
-    struct timespec before;
-    bool beforeIsValid = false;
     total.tv_sec = 0;
     total.tv_nsec = 0;
     audio_track_cblk_t* cblk = mCblk;
@@ -572,38 +570,17 @@ status_t AudioTrackClientProxy::waitStreamEndDone(const struct timespec *request
         }
         int32_t old = android_atomic_and(~CBLK_FUTEX_WAKE, &cblk->mFutex);
         if (!(old & CBLK_FUTEX_WAKE)) {
-            if (!beforeIsValid) {
-                clock_gettime(CLOCK_MONOTONIC, &before);
-                beforeIsValid = true;
-            }
             errno = 0;
             (void) syscall(__NR_futex, &cblk->mFutex,
                     mClientInServer ? FUTEX_WAIT_PRIVATE : FUTEX_WAIT, old & ~CBLK_FUTEX_WAKE, ts);
-            status_t error = errno; // clock_gettime can affect errno
-            {
-                struct timespec after;
-                clock_gettime(CLOCK_MONOTONIC, &after);
-                total.tv_sec += after.tv_sec - before.tv_sec;
-                // Use auto instead of long to avoid the google-runtime-int warning.
-                auto deltaNs = after.tv_nsec - before.tv_nsec;
-                if (deltaNs < 0) {
-                    deltaNs += 1000000000;
-                    total.tv_sec--;
-                }
-                if ((total.tv_nsec += deltaNs) >= 1000000000) {
-                    total.tv_nsec -= 1000000000;
-                    total.tv_sec++;
-                }
-                before = after;
-            }
-            switch (error) {
+            switch (errno) {
             case 0:            // normal wakeup by server, or by binderDied()
             case EWOULDBLOCK:  // benign race condition with server
             case EINTR:        // wait was interrupted by signal or other spurious wakeup
             case ETIMEDOUT:    // time-out expired
                 break;
             default:
-                status = error;
+                status = errno;
                 ALOGE("%s unexpected error %s", __func__, strerror(status));
                 goto end;
             }
@@ -770,7 +747,7 @@ void ServerProxy::flushBufferIfNeeded()
             int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
             if (!(old & CBLK_FUTEX_WAKE)) {
                 (void) syscall(__NR_futex, &cblk->mFutex,
-                        mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, INT_MAX);
+                        mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1);
             }
         }
         mFlushed += (newFront - front) & mask;
@@ -940,7 +917,7 @@ void ServerProxy::releaseBuffer(Buffer* buffer)
         int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
         if (!(old & CBLK_FUTEX_WAKE)) {
             (void) syscall(__NR_futex, &cblk->mFutex,
-                    mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, INT_MAX);
+                    mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1);
         }
     }
 

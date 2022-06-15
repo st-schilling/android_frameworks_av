@@ -16,8 +16,6 @@
 
 package android.media.tv.tuner;
 
-import android.hardware.tv.tuner.LnbEventType;
-
 /**
  * TuneLnbCallback interface handles tuner lnb related callbacks.
  *
@@ -27,7 +25,7 @@ interface ITunerLnbCallback {
     /**
      * Notify the client that a new event happened on the Lnb.
      */
-    void onEvent(in LnbEventType lnbEventType);
+    void onEvent(in int lnbEventType);
 
     /**
      * notify the client of new DiSEqC message.

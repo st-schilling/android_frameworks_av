@@ -19,24 +19,21 @@
 
 #include <stdint.h>
 
-#include "FlowGraphNode.h"
+#include "AudioProcessorBase.h"
 
-namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph {
+namespace flowgraph {
 
-class SourceI32 : public FlowGraphSourceBuffered {
+class SourceI32 : public AudioSource {
 public:
     explicit SourceI32(int32_t channelCount);
     ~SourceI32() override = default;
 
-    int32_t onProcess(int32_t numFrames) override;
+    int32_t onProcess(int64_t framePosition, int32_t numFrames) override;
 
-    const char *getName() override {
-        return "SourceI32";
-    }
 private:
     static constexpr float kScale = 1.0 / (1UL << 31);
 };
 
-} /* namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph */
+} /* namespace flowgraph */
 
 #endif //FLOWGRAPH_SOURCE_I32_H

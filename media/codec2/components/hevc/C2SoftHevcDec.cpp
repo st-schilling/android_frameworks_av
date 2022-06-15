@@ -663,7 +663,8 @@ status_t C2SoftHevcDec::resetDecoder() {
 
 void C2SoftHevcDec::resetPlugin() {
     mSignalledOutputEos = false;
-    mTimeStart = mTimeEnd = systemTime();
+    gettimeofday(&mTimeStart, nullptr);
+    gettimeofday(&mTimeEnd, nullptr);
 }
 
 status_t C2SoftHevcDec::deleteDecoder() {
@@ -857,13 +858,14 @@ void C2SoftHevcDec::process(
             /* Decode header and get dimensions */
             setParams(mStride, IVD_DECODE_HEADER);
         }
-
-        mTimeStart = systemTime();
-        nsecs_t delay = mTimeStart - mTimeEnd;
+        WORD32 delay;
+        GETTIME(&mTimeStart, nullptr);
+        TIME_DIFF(mTimeEnd, mTimeStart, delay);
         (void) ivdec_api_function(mDecHandle, ps_decode_ip, ps_decode_op);
-        mTimeEnd = systemTime();
-        nsecs_t decodeTime = mTimeEnd - mTimeStart;
-        ALOGV("decodeTime=%6" PRId64 " delay=%6" PRId64 " numBytes=%6d", decodeTime, delay,
+        WORD32 decodeTime;
+        GETTIME(&mTimeEnd, nullptr);
+        TIME_DIFF(mTimeStart, mTimeEnd, decodeTime);
+        ALOGV("decodeTime=%6d delay=%6d numBytes=%6d", decodeTime, delay,
               ps_decode_op->u4_num_bytes_consumed);
         if (IVD_MEM_ALLOC_FAILED == (ps_decode_op->u4_error_code & IVD_ERROR_MASK)) {
             ALOGE("allocation failure in decoder");

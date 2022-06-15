@@ -18,7 +18,7 @@
 #define LOG_TAG "NetworkUtils"
 #include <utils/Log.h>
 
-#include <media/stagefright/rtsp/NetworkUtils.h>
+#include "NetworkUtils.h"
 
 // NetworkUtils implementation for application process.
 namespace android {

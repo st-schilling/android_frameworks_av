@@ -128,8 +128,7 @@ AAUDIO_API void AAudioStreamBuilder_setSamplesPerFrame(AAudioStreamBuilder* buil
                                                        int32_t samplesPerFrame)
 {
     AudioStreamBuilder *streamBuilder = convertAAudioBuilderToStreamBuilder(builder);
-    const aaudio_channel_mask_t channelMask = AAudioConvert_channelCountToMask(samplesPerFrame);
-    streamBuilder->setChannelMask(channelMask);
+    streamBuilder->setSamplesPerFrame(samplesPerFrame);
 }
 
 AAUDIO_API void AAudioStreamBuilder_setDirection(AAudioStreamBuilder* builder,
@@ -165,18 +164,6 @@ AAUDIO_API void AAudioStreamBuilder_setContentType(AAudioStreamBuilder* builder,
                                                    aaudio_content_type_t contentType) {
     AudioStreamBuilder *streamBuilder = convertAAudioBuilderToStreamBuilder(builder);
     streamBuilder->setContentType(contentType);
-}
-
-AAUDIO_API void AAudioStreamBuilder_setSpatializationBehavior(AAudioStreamBuilder* builder,
-        aaudio_spatialization_behavior_t spatializationBehavior) {
-    AudioStreamBuilder *streamBuilder = convertAAudioBuilderToStreamBuilder(builder);
-    streamBuilder->setSpatializationBehavior(spatializationBehavior);
-}
-
-AAUDIO_API void AAudioStreamBuilder_setIsContentSpatialized(AAudioStreamBuilder* builder,
-                                                            bool isSpatialized) {
-    AudioStreamBuilder *streamBuilder = convertAAudioBuilderToStreamBuilder(builder);
-    streamBuilder->setIsContentSpatialized(isSpatialized);
 }
 
 AAUDIO_API void AAudioStreamBuilder_setInputPreset(AAudioStreamBuilder* builder,
@@ -234,13 +221,6 @@ AAUDIO_API void AAudioStreamBuilder_setFramesPerDataCallback(AAudioStreamBuilder
 {
     AudioStreamBuilder *streamBuilder = convertAAudioBuilderToStreamBuilder(builder);
     streamBuilder->setFramesPerDataCallback(frames);
-}
-
-AAUDIO_API void AAudioStreamBuilder_setChannelMask(AAudioStreamBuilder* builder,
-                                                   aaudio_channel_mask_t channelMask)
-{
-    AudioStreamBuilder *streamBuilder = convertAAudioBuilderToStreamBuilder(builder);
-    streamBuilder->setChannelMask(channelMask);
 }
 
 AAUDIO_API aaudio_result_t  AAudioStreamBuilder_openStream(AAudioStreamBuilder* builder,
@@ -352,8 +332,7 @@ AAUDIO_API aaudio_result_t AAudioStream_waitForStateChange(AAudioStream* stream,
 {
 
     AudioStream *audioStream = convertAAudioStreamToAudioStream(stream);
-    android::sp<AudioStream> spAudioStream(audioStream);
-    return spAudioStream->waitForStateChange(inputState, nextState, timeoutNanoseconds);
+    return audioStream->waitForStateChange(inputState, nextState, timeoutNanoseconds);
 }
 
 // ============================================================
@@ -516,19 +495,6 @@ AAUDIO_API aaudio_content_type_t AAudioStream_getContentType(AAudioStream* strea
     return audioStream->getContentType();
 }
 
-AAUDIO_API aaudio_spatialization_behavior_t AAudioStream_getSpatializationBehavior(
-        AAudioStream* stream)
-{
-    AudioStream *audioStream = convertAAudioStreamToAudioStream(stream);
-    return audioStream->getSpatializationBehavior();
-}
-
-AAUDIO_API bool AAudioStream_isContentSpatialized(AAudioStream* stream)
-{
-    AudioStream *audioStream = convertAAudioStreamToAudioStream(stream);
-    return audioStream->isContentSpatialized();
-}
-
 AAUDIO_API aaudio_input_preset_t AAudioStream_getInputPreset(AAudioStream* stream)
 {
     AudioStream *audioStream = convertAAudioStreamToAudioStream(stream);
@@ -595,12 +561,4 @@ AAUDIO_API bool AAudioStream_isPrivacySensitive(AAudioStream* stream)
 {
     AudioStream *audioStream = convertAAudioStreamToAudioStream(stream);
     return audioStream->isPrivacySensitive();
-}
-
-AAUDIO_API aaudio_channel_mask_t AAudioStream_getChannelMask(AAudioStream* stream)
-{
-    AudioStream *audioStream = convertAAudioStreamToAudioStream(stream);
-    const aaudio_channel_mask_t channelMask = audioStream->getChannelMask();
-    // Do not return channel index masks as they are not public.
-    return AAudio_isChannelIndexMask(channelMask) ? AAUDIO_UNSPECIFIED : channelMask;
 }

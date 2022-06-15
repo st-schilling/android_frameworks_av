@@ -18,7 +18,6 @@ cc_defaults {
         "libutils",
         "libbinder",
         "framework-permission-aidl-cpp",
-        "packagemanager_aidl-cpp",
     ],
 
     cflags: [
@@ -31,6 +30,11 @@ cc_defaults {
     header_libs: [
         "bionic_libc_platform_headers",
         "libmedia_headers",
+    ],
+
+    include_dirs: [
+        // For DEBUGGER_SIGNAL
+        "system/core/debuggerd/include",
     ],
 }
 

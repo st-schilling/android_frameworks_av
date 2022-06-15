@@ -28,9 +28,8 @@ namespace aaudio {
 
 class AudioStreamInternalCapture : public AudioStreamInternal {
 public:
-    explicit AudioStreamInternalCapture(AAudioServiceInterface  &serviceInterface,
-                                        bool inService = false);
-    virtual ~AudioStreamInternalCapture() = default;
+    AudioStreamInternalCapture(AAudioServiceInterface  &serviceInterface, bool inService = false);
+    virtual ~AudioStreamInternalCapture();
 
     aaudio_result_t read(void *buffer,
                          int32_t numFrames,
@@ -46,7 +45,7 @@ public:
     }
 protected:
 
-    void advanceClientToMatchServerPosition(int32_t serverOffset) override;
+    void advanceClientToMatchServerPosition(int32_t serverOffset = 0) override;
 
 /**
  * Low level data processing that will not block. It will just read or write as much as it can.

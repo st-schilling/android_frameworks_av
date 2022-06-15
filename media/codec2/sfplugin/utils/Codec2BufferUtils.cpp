@@ -16,9 +16,7 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "Codec2BufferUtils"
-#define ATRACE_TAG  ATRACE_TAG_VIDEO
 #include <utils/Log.h>
-#include <utils/Trace.h>
 
 #include <libyuv.h>
 
@@ -38,8 +36,8 @@ namespace android {
 namespace {
 
 /**
- * A flippable, optimizable memcpy. Constructs such as (from ? src : dst)
- * do not work as the results are always const.
+ * A flippable, optimizable memcpy. Constructs such as (from ? src : dst) do not work as the results are
+ * always const.
  */
 template<bool ToA, size_t S>
 struct MemCopier {
@@ -90,7 +88,7 @@ static status_t _ImageCopy(View &view, const MediaImage2 *img, ImagePixel *imgBa
         uint32_t planeW = img->mWidth / plane.colSampling;
         uint32_t planeH = img->mHeight / plane.rowSampling;
 
-        bool canCopyByRow = (plane.colInc == bpp) && (img->mPlane[i].mColInc == bpp);
+        bool canCopyByRow = (plane.colInc == 1) && (img->mPlane[i].mColInc == 1);
         bool canCopyByPlane = canCopyByRow && (plane.rowInc == img->mPlane[i].mRowInc);
         if (canCopyByPlane) {
             MemCopier<ToMediaImage, 0>::copy(imgRow, viewRow, plane.rowInc * planeH);
@@ -141,18 +139,15 @@ status_t ImageCopy(uint8_t *imgBase, const MediaImage2 *img, const C2GraphicView
 
     if (IsNV12(view)) {
         if (IsNV12(img)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: NV12->NV12");
             libyuv::CopyPlane(src_y, src_stride_y, dst_y, dst_stride_y, width, height);
             libyuv::CopyPlane(src_u, src_stride_u, dst_u, dst_stride_u, width, height / 2);
             return OK;
         } else if (IsNV21(img)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: NV12->NV21");
             if (!libyuv::NV21ToNV12(src_y, src_stride_y, src_u, src_stride_u,
                                     dst_y, dst_stride_y, dst_v, dst_stride_v, width, height)) {
                 return OK;
             }
         } else if (IsI420(img)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: NV12->I420");
             if (!libyuv::NV12ToI420(src_y, src_stride_y, src_u, src_stride_u, dst_y, dst_stride_y,
                                     dst_u, dst_stride_u, dst_v, dst_stride_v, width, height)) {
                 return OK;
@@ -160,18 +155,15 @@ status_t ImageCopy(uint8_t *imgBase, const MediaImage2 *img, const C2GraphicView
         }
     } else if (IsNV21(view)) {
         if (IsNV12(img)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: NV21->NV12");
             if (!libyuv::NV21ToNV12(src_y, src_stride_y, src_v, src_stride_v,
                                     dst_y, dst_stride_y, dst_u, dst_stride_u, width, height)) {
                 return OK;
             }
         } else if (IsNV21(img)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: NV21->NV21");
             libyuv::CopyPlane(src_y, src_stride_y, dst_y, dst_stride_y, width, height);
             libyuv::CopyPlane(src_v, src_stride_v, dst_v, dst_stride_v, width, height / 2);
             return OK;
         } else if (IsI420(img)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: NV21->I420");
             if (!libyuv::NV21ToI420(src_y, src_stride_y, src_v, src_stride_v, dst_y, dst_stride_y,
                                     dst_u, dst_stride_u, dst_v, dst_stride_v, width, height)) {
                 return OK;
@@ -179,26 +171,22 @@ status_t ImageCopy(uint8_t *imgBase, const MediaImage2 *img, const C2GraphicView
         }
     } else if (IsI420(view)) {
         if (IsNV12(img)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: I420->NV12");
             if (!libyuv::I420ToNV12(src_y, src_stride_y, src_u, src_stride_u, src_v, src_stride_v,
                                     dst_y, dst_stride_y, dst_u, dst_stride_u, width, height)) {
                 return OK;
             }
         } else if (IsNV21(img)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: I420->NV21");
             if (!libyuv::I420ToNV21(src_y, src_stride_y, src_u, src_stride_u, src_v, src_stride_v,
                                     dst_y, dst_stride_y, dst_v, dst_stride_v, width, height)) {
                 return OK;
             }
         } else if (IsI420(img)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: I420->I420");
             libyuv::CopyPlane(src_y, src_stride_y, dst_y, dst_stride_y, width, height);
             libyuv::CopyPlane(src_u, src_stride_u, dst_u, dst_stride_u, width / 2, height / 2);
             libyuv::CopyPlane(src_v, src_stride_v, dst_v, dst_stride_v, width / 2, height / 2);
             return OK;
         }
     }
-    ScopedTrace trace(ATRACE_TAG, "ImageCopy: generic");
     return _ImageCopy<true>(view, img, imgBase);
 }
 
@@ -222,18 +210,15 @@ status_t ImageCopy(C2GraphicView &view, const uint8_t *imgBase, const MediaImage
     int height = view.crop().height;
     if (IsNV12(img)) {
         if (IsNV12(view)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: NV12->NV12");
             libyuv::CopyPlane(src_y, src_stride_y, dst_y, dst_stride_y, width, height);
             libyuv::CopyPlane(src_u, src_stride_u, dst_u, dst_stride_u, width, height / 2);
             return OK;
         } else if (IsNV21(view)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: NV12->NV21");
             if (!libyuv::NV21ToNV12(src_y, src_stride_y, src_u, src_stride_u,
                                     dst_y, dst_stride_y, dst_v, dst_stride_v, width, height)) {
                 return OK;
             }
         } else if (IsI420(view)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: NV12->I420");
             if (!libyuv::NV12ToI420(src_y, src_stride_y, src_u, src_stride_u, dst_y, dst_stride_y,
                                     dst_u, dst_stride_u, dst_v, dst_stride_v, width, height)) {
                 return OK;
@@ -241,18 +226,15 @@ status_t ImageCopy(C2GraphicView &view, const uint8_t *imgBase, const MediaImage
         }
     } else if (IsNV21(img)) {
         if (IsNV12(view)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: NV21->NV12");
             if (!libyuv::NV21ToNV12(src_y, src_stride_y, src_v, src_stride_v,
                                     dst_y, dst_stride_y, dst_u, dst_stride_u, width, height)) {
                 return OK;
             }
         } else if (IsNV21(view)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: NV21->NV21");
             libyuv::CopyPlane(src_y, src_stride_y, dst_y, dst_stride_y, width, height);
             libyuv::CopyPlane(src_v, src_stride_v, dst_v, dst_stride_v, width, height / 2);
             return OK;
         } else if (IsI420(view)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: NV21->I420");
             if (!libyuv::NV21ToI420(src_y, src_stride_y, src_v, src_stride_v, dst_y, dst_stride_y,
                                     dst_u, dst_stride_u, dst_v, dst_stride_v, width, height)) {
                 return OK;
@@ -260,26 +242,22 @@ status_t ImageCopy(C2GraphicView &view, const uint8_t *imgBase, const MediaImage
         }
     } else if (IsI420(img)) {
         if (IsNV12(view)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: I420->NV12");
             if (!libyuv::I420ToNV12(src_y, src_stride_y, src_u, src_stride_u, src_v, src_stride_v,
                                     dst_y, dst_stride_y, dst_u, dst_stride_u, width, height)) {
                 return OK;
             }
         } else if (IsNV21(view)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: I420->NV21");
             if (!libyuv::I420ToNV21(src_y, src_stride_y, src_u, src_stride_u, src_v, src_stride_v,
                                     dst_y, dst_stride_y, dst_v, dst_stride_v, width, height)) {
                 return OK;
             }
         } else if (IsI420(view)) {
-            ScopedTrace trace(ATRACE_TAG, "ImageCopy: I420->I420");
             libyuv::CopyPlane(src_y, src_stride_y, dst_y, dst_stride_y, width, height);
             libyuv::CopyPlane(src_u, src_stride_u, dst_u, dst_stride_u, width / 2, height / 2);
             libyuv::CopyPlane(src_v, src_stride_v, dst_v, dst_stride_v, width / 2, height / 2);
             return OK;
         }
     }
-    ScopedTrace trace(ATRACE_TAG, "ImageCopy: generic");
     return _ImageCopy<false>(view, img, imgBase);
 }
 
@@ -532,14 +510,12 @@ MediaImage2 CreateYUV420SemiPlanarMediaImage2(
 // Matrix coefficient to convert RGB to Planar YUV data.
 // Each sub-array represents the 3X3 coeff used with R, G and B
 static const int16_t bt601Matrix[2][3][3] = {
-    { { 77, 150, 29 }, { -43, -85, 128 }, { 128, -107, -21 } }, /* RANGE_FULL */
+    { { 76, 150, 29 }, { -43, -85, 128 }, { 128, -107, -21 } }, /* RANGE_FULL */
     { { 66, 129, 25 }, { -38, -74, 112 }, { 112, -94, -18 } },  /* RANGE_LIMITED */
 };
 
 static const int16_t bt709Matrix[2][3][3] = {
-    // TRICKY: 18 is adjusted to 19 so that sum of row 1 is 256
-    { { 54, 183, 19 }, { -29, -99, 128 }, { 128, -116, -12 } }, /* RANGE_FULL */
-    // TRICKY: -87 is adjusted to -86 so that sum of row 2 is 0
+    { { 54, 183, 18 }, { -29, -99, 128 }, { 128, -116, -12 } }, /* RANGE_FULL */
     { { 47, 157, 16 }, { -26, -86, 112 }, { 112, -102, -10 } }, /* RANGE_LIMITED */
 };
 

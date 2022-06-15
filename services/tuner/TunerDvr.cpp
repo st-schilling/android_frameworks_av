@@ -16,152 +16,194 @@
 
 #define LOG_TAG "TunerDvr"
 
+#include <fmq/ConvertMQDescriptors.h>
 #include "TunerDvr.h"
-
-#include <aidl/android/hardware/tv/tuner/Result.h>
-#include <utils/Log.h>
-
 #include "TunerFilter.h"
 
-using ::aidl::android::hardware::tv::tuner::Result;
+using ::android::hardware::tv::tuner::V1_0::DataFormat;
+using ::android::hardware::tv::tuner::V1_0::Result;
 
-namespace aidl {
 namespace android {
-namespace media {
-namespace tv {
-namespace tuner {
 
-TunerDvr::TunerDvr(shared_ptr<IDvr> dvr, DvrType type) {
+TunerDvr::TunerDvr(sp<IDvr> dvr, int type) {
     mDvr = dvr;
-    mType = type;
+    mType = static_cast<DvrType>(type);
 }
 
 TunerDvr::~TunerDvr() {
-    mDvr = nullptr;
+    mDvr = NULL;
 }
 
-::ndk::ScopedAStatus TunerDvr::getQueueDesc(AidlMQDesc* _aidl_return) {
-    if (mDvr == nullptr) {
+Status TunerDvr::getQueueDesc(AidlMQDesc* _aidl_return) {
+    if (mDvr == NULL) {
         ALOGE("IDvr is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    return mDvr->getQueueDesc(_aidl_return);
+    MQDesc dvrMQDesc;
+    Result res;
+    mDvr->getQueueDesc([&](Result r, const MQDesc& desc) {
+        dvrMQDesc = desc;
+        res = r;
+    });
+    if (res != Result::SUCCESS) {
+        return Status::fromServiceSpecificError(static_cast<int32_t>(res));
+    }
+
+    AidlMQDesc aidlMQDesc;
+    unsafeHidlToAidlMQDescriptor<uint8_t, int8_t, SynchronizedReadWrite>(
+                dvrMQDesc,  &aidlMQDesc);
+    *_aidl_return = move(aidlMQDesc);
+    return Status::ok();
 }
 
-::ndk::ScopedAStatus TunerDvr::configure(const DvrSettings& in_settings) {
-    if (mDvr == nullptr) {
+Status TunerDvr::configure(const TunerDvrSettings& settings) {
+    if (mDvr == NULL) {
         ALOGE("IDvr is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    return mDvr->configure(in_settings);
+    Result res = mDvr->configure(getHidlDvrSettingsFromAidl(settings));
+    if (res != Result::SUCCESS) {
+        return ::ndk::ScopedAStatus::fromServiceSpecificError(static_cast<int32_t>(res));
+    }
+    return Status::ok();
 }
 
-::ndk::ScopedAStatus TunerDvr::attachFilter(const shared_ptr<ITunerFilter>& in_filter) {
-    if (mDvr == nullptr) {
+Status TunerDvr::attachFilter(const shared_ptr<ITunerFilter>& filter) {
+    if (mDvr == NULL) {
         ALOGE("IDvr is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    if (in_filter == nullptr) {
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::INVALID_ARGUMENT));
+    ITunerFilter* tunerFilter = filter.get();
+    sp<IFilter> hidlFilter = static_cast<TunerFilter*>(tunerFilter)->getHalFilter();
+    if (hidlFilter == NULL) {
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::INVALID_ARGUMENT));
     }
 
-    shared_ptr<IFilter> halFilter = (static_cast<TunerFilter*>(in_filter.get()))->getHalFilter();
-    if (halFilter == nullptr) {
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::INVALID_ARGUMENT));
+    Result res = mDvr->attachFilter(hidlFilter);
+    if (res != Result::SUCCESS) {
+        return ::ndk::ScopedAStatus::fromServiceSpecificError(static_cast<int32_t>(res));
     }
-
-    return mDvr->attachFilter(halFilter);
+    return Status::ok();
 }
 
-::ndk::ScopedAStatus TunerDvr::detachFilter(const shared_ptr<ITunerFilter>& in_filter) {
-    if (mDvr == nullptr) {
+Status TunerDvr::detachFilter(const shared_ptr<ITunerFilter>& filter) {
+    if (mDvr == NULL) {
         ALOGE("IDvr is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    if (in_filter == nullptr) {
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::INVALID_ARGUMENT));
+    ITunerFilter* tunerFilter = filter.get();
+    sp<IFilter> hidlFilter = static_cast<TunerFilter*>(tunerFilter)->getHalFilter();
+    if (hidlFilter == NULL) {
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::INVALID_ARGUMENT));
     }
 
-    shared_ptr<IFilter> halFilter = (static_cast<TunerFilter*>(in_filter.get()))->getHalFilter();
-    if (halFilter == nullptr) {
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::INVALID_ARGUMENT));
+    Result res = mDvr->detachFilter(hidlFilter);
+    if (res != Result::SUCCESS) {
+        return ::ndk::ScopedAStatus::fromServiceSpecificError(static_cast<int32_t>(res));
     }
-
-    return mDvr->detachFilter(halFilter);
+    return Status::ok();
 }
 
-::ndk::ScopedAStatus TunerDvr::start() {
-    if (mDvr == nullptr) {
+Status TunerDvr::start() {
+    if (mDvr == NULL) {
         ALOGE("IDvr is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    return mDvr->start();
+    Result res = mDvr->start();
+    if (res != Result::SUCCESS) {
+        return ::ndk::ScopedAStatus::fromServiceSpecificError(static_cast<int32_t>(res));
+    }
+    return Status::ok();
 }
 
-::ndk::ScopedAStatus TunerDvr::stop() {
-    if (mDvr == nullptr) {
+Status TunerDvr::stop() {
+    if (mDvr == NULL) {
         ALOGE("IDvr is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    return mDvr->stop();
+    Result res = mDvr->stop();
+    if (res != Result::SUCCESS) {
+        return ::ndk::ScopedAStatus::fromServiceSpecificError(static_cast<int32_t>(res));
+    }
+    return Status::ok();
 }
 
-::ndk::ScopedAStatus TunerDvr::flush() {
-    if (mDvr == nullptr) {
+Status TunerDvr::flush() {
+    if (mDvr == NULL) {
         ALOGE("IDvr is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    return mDvr->flush();
+    Result res = mDvr->flush();
+    if (res != Result::SUCCESS) {
+        return ::ndk::ScopedAStatus::fromServiceSpecificError(static_cast<int32_t>(res));
+    }
+    return Status::ok();
 }
 
-::ndk::ScopedAStatus TunerDvr::close() {
-    if (mDvr == nullptr) {
+Status TunerDvr::close() {
+    if (mDvr == NULL) {
         ALOGE("IDvr is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    auto status = mDvr->close();
-    mDvr = nullptr;
+    Result res = mDvr->close();
+    mDvr = NULL;
 
-    return status;
+    if (res != Result::SUCCESS) {
+        return ::ndk::ScopedAStatus::fromServiceSpecificError(static_cast<int32_t>(res));
+    }
+    return Status::ok();
+}
+
+DvrSettings TunerDvr::getHidlDvrSettingsFromAidl(TunerDvrSettings settings) {
+    DvrSettings s;
+    switch (mType) {
+        case DvrType::PLAYBACK: {
+            s.playback({
+                .statusMask = static_cast<uint8_t>(settings.statusMask),
+                .lowThreshold = static_cast<uint32_t>(settings.lowThreshold),
+                .highThreshold = static_cast<uint32_t>(settings.highThreshold),
+                .dataFormat = static_cast<DataFormat>(settings.dataFormat),
+                .packetSize = static_cast<uint8_t>(settings.packetSize),
+            });
+            return s;
+        }
+        case DvrType::RECORD: {
+            s.record({
+                .statusMask = static_cast<uint8_t>(settings.statusMask),
+                .lowThreshold = static_cast<uint32_t>(settings.lowThreshold),
+                .highThreshold = static_cast<uint32_t>(settings.highThreshold),
+                .dataFormat = static_cast<DataFormat>(settings.dataFormat),
+                .packetSize = static_cast<uint8_t>(settings.packetSize),
+            });
+            return s;
+        }
+        default:
+            break;
+    }
+    return s;
 }
 
 /////////////// IDvrCallback ///////////////////////
-::ndk::ScopedAStatus TunerDvr::DvrCallback::onRecordStatus(const RecordStatus status) {
-    if (mTunerDvrCallback != nullptr) {
-        mTunerDvrCallback->onRecordStatus(status);
+
+Return<void> TunerDvr::DvrCallback::onRecordStatus(const RecordStatus status) {
+    if (mTunerDvrCallback != NULL) {
+        mTunerDvrCallback->onRecordStatus(static_cast<int>(status));
     }
-    return ndk::ScopedAStatus::ok();
+    return Void();
 }
 
-::ndk::ScopedAStatus TunerDvr::DvrCallback::onPlaybackStatus(const PlaybackStatus status) {
-    if (mTunerDvrCallback != nullptr) {
-        mTunerDvrCallback->onPlaybackStatus(status);
+Return<void> TunerDvr::DvrCallback::onPlaybackStatus(const PlaybackStatus status) {
+    if (mTunerDvrCallback != NULL) {
+        mTunerDvrCallback->onPlaybackStatus(static_cast<int>(status));
     }
-    return ndk::ScopedAStatus::ok();
+    return Void();
 }
-
-}  // namespace tuner
-}  // namespace tv
-}  // namespace media
 }  // namespace android
-}  // namespace aidl

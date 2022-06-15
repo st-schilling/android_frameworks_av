@@ -64,27 +64,11 @@ bool ProcessInfo::getPriority(int pid, int* priority) {
     return true;
 }
 
-bool ProcessInfo::isPidTrusted(int pid) {
-    return isPidUidTrusted(pid, -1);
-}
-
-bool ProcessInfo::isPidUidTrusted(int pid, int uid) {
+bool ProcessInfo::isValidPid(int pid) {
     int callingPid = IPCThreadState::self()->getCallingPid();
     int callingUid = IPCThreadState::self()->getCallingUid();
-    // Always trust when the caller is acting on their own behalf.
-    if (pid == callingPid && (uid == callingUid || uid == -1)) { // UID can be optional
-        return true;
-    }
-    // Implicitly trust when the caller is our own process.
-    if (callingPid == getpid()) {
-        return true;
-    }
-    // Implicitly trust when a media process is calling.
-    if (callingUid == AID_MEDIA) {
-        return true;
-    }
-    // Otherwise, allow the caller to act as another process when the caller has permissions.
-    return checkCallingPermission(String16("android.permission.MEDIA_RESOURCE_OVERRIDE_PID"));
+    // Trust it if this is called from the same process otherwise pid has to match the calling pid.
+    return (callingPid == getpid()) || (callingPid == pid) || (callingUid == AID_MEDIA);
 }
 
 bool ProcessInfo::overrideProcessInfo(int pid, int procState, int oomScore) {

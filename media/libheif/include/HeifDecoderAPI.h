@@ -23,10 +23,9 @@
  * The output color pixel format of heif decoder.
  */
 typedef enum {
-    kHeifColorFormat_RGB565       = 0,
-    kHeifColorFormat_RGBA_8888    = 1,
-    kHeifColorFormat_BGRA_8888    = 2,
-    kHeifColorFormat_RGBA_1010102 = 3,
+    kHeifColorFormat_RGB565     = 0,
+    kHeifColorFormat_RGBA_8888  = 1,
+    kHeifColorFormat_BGRA_8888  = 2,
 } HeifColorFormat;
 
 /*
@@ -46,8 +45,7 @@ struct HeifFrameInfo {
     uint32_t mHeight;
     int32_t  mRotationAngle;           // Rotation angle, clockwise, should be multiple of 90
     uint32_t mBytesPerPixel;           // Number of bytes for one pixel
-    int64_t  mDurationUs;              // Duration of the frame in us
-    uint32_t mBitDepth;                // Number of bits for each of the R/G/B channels
+    int64_t mDurationUs;               // Duration of the frame in us
     std::vector<uint8_t> mIccData;     // ICC data array
 };
 
@@ -162,11 +160,6 @@ struct HeifDecoder {
      * false otherwise.
      */
     virtual size_t skipScanlines(size_t count) = 0;
-
-    /*
-     * Returns color depth in bits for each of the R/G/B channels.
-     */
-    virtual uint32_t getColorDepth() = 0;
 
 private:
     HeifDecoder(const HeifFrameInfo&) = delete;

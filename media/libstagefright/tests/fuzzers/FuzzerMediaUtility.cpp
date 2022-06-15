@@ -23,8 +23,7 @@
 #include <media/stagefright/OggWriter.h>
 
 #include "MediaMimeTypes.h"
-
-#include <webm/WebmWriter.h>
+#include "webm/WebmWriter.h"
 
 namespace android {
 std::string genMimeType(FuzzedDataProvider *dataProvider) {

@@ -28,6 +28,7 @@ using android::hidl::memory::V1_0::IMemory;
 
 namespace android {
 namespace effect {
+namespace CPP_VERSION {
 
 using namespace ::android::hardware::audio::effect::CPP_VERSION;
 
@@ -73,6 +74,7 @@ class EffectBufferHalHidl : public EffectBufferHalInterface
     status_t init();
 };
 
+} // namespace CPP_VERSION
 } // namespace effect
 } // namespace android
 

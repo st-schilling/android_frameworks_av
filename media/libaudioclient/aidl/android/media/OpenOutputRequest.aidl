@@ -16,9 +16,8 @@
 
 package android.media;
 
+import android.media.AudioConfig;
 import android.media.AudioPort;
-import android.media.audio.common.AudioConfig;
-import android.media.audio.common.AudioConfigBase;
 
 /**
  * {@hide}
@@ -26,8 +25,7 @@ import android.media.audio.common.AudioConfigBase;
 parcelable OpenOutputRequest {
     /** Interpreted as audio_module_handle_t. */
     int module;
-    AudioConfig halConfig;
-    AudioConfigBase mixerConfig;
+    AudioConfig config;
     /** Type must be DEVICE. */
     AudioPort device;
     /** Bitmask, indexed by AudioOutputFlag. */

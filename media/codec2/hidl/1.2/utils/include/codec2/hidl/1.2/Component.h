@@ -142,10 +142,6 @@ protected:
     friend struct ComponentStore;
 
     struct Listener;
-
-    using HwDeathRecipient = ::android::hardware::hidl_death_recipient;
-    sp<HwDeathRecipient> mDeathRecipient;
-
 };
 
 } // namespace utils

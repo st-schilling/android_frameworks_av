@@ -50,10 +50,12 @@ class MediaDrmMetrics {
   CounterMetric<status_t> mGetProvisionRequestCounter;
   // Count of provideProvisionResponse calls.
   CounterMetric<status_t> mProvideProvisionResponseCounter;
+
   // Count of key status events broken out by status type.
-  CounterMetric<uint32_t> mKeyStatusChangeCounter;
+  CounterMetric<::android::hardware::drm::V1_2::KeyStatusType>
+      mKeyStatusChangeCounter;
   // Count of events broken out by event type
-  CounterMetric<uint32_t> mEventCounter;
+  CounterMetric<::android::hardware::drm::V1_0::EventType> mEventCounter;
 
   // Count getPropertyByteArray calls to retrieve the device unique id.
   CounterMetric<status_t> mGetDeviceUniqueIdCounter;

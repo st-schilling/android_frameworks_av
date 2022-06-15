@@ -44,7 +44,7 @@ public:
         setReadCounter(0);
         setWriteCounter(0);
     }
-    virtual ~FifoControllerIndirect() = default;
+    virtual ~FifoControllerIndirect() {};
 
     // TODO review use of memory barriers, probably incorrect
     virtual fifo_counter_t getReadCounter() override {
@@ -68,6 +68,6 @@ private:
     std::atomic<fifo_counter_t> * mWriteCounterAddress;
 };
 
-}  // namespace android
+}  // android
 
 #endif //FIFO_FIFO_CONTROLLER_INDIRECT_H

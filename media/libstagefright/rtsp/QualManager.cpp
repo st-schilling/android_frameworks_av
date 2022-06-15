@@ -21,7 +21,7 @@
 #include <sys/prctl.h>
 #include <utils/Log.h>
 
-#include <media/stagefright/rtsp/QualManager.h>
+#include "QualManager.h"
 
 namespace android {
 

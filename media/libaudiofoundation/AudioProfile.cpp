@@ -27,8 +27,6 @@
 
 namespace android {
 
-using media::audio::common::AudioChannelLayout;
-
 bool operator == (const AudioProfile &left, const AudioProfile &right)
 {
     return (left.getFormat() == right.getFormat()) &&
@@ -99,14 +97,18 @@ void AudioProfile::clear()
 
 void AudioProfile::dump(std::string *dst, int spaces) const
 {
-    dst->append(base::StringPrintf("\"%s\"; ", mName.c_str()));
-    dst->append(base::StringPrintf("%s%s%s%s", mIsDynamicFormat ? "[dynamic format]" : "",
+    dst->append(base::StringPrintf("%s%s%s\n", mIsDynamicFormat ? "[dynamic format]" : "",
              mIsDynamicChannels ? "[dynamic channels]" : "",
-             mIsDynamicRate ? "[dynamic rates]" : "", isDynamic() ? "; " : ""));
-    dst->append(base::StringPrintf("%s (0x%x)\n", audio_format_to_string(mFormat), mFormat));
-
+             mIsDynamicRate ? "[dynamic rates]" : ""));
+    if (mName.length() != 0) {
+        dst->append(base::StringPrintf("%*s- name: %s\n", spaces, "", mName.c_str()));
+    }
+    std::string formatLiteral;
+    if (FormatConverter::toString(mFormat, formatLiteral)) {
+        dst->append(base::StringPrintf("%*s- format: %s\n", spaces, "", formatLiteral.c_str()));
+    }
     if (!mSamplingRates.empty()) {
-        dst->append(base::StringPrintf("%*ssampling rates: ", spaces, ""));
+        dst->append(base::StringPrintf("%*s- sampling rates:", spaces, ""));
         for (auto it = mSamplingRates.begin(); it != mSamplingRates.end();) {
             dst->append(base::StringPrintf("%d", *it));
             dst->append(++it == mSamplingRates.end() ? "" : ", ");
@@ -115,7 +117,7 @@ void AudioProfile::dump(std::string *dst, int spaces) const
     }
 
     if (!mChannelMasks.empty()) {
-        dst->append(base::StringPrintf("%*schannel masks: ", spaces, ""));
+        dst->append(base::StringPrintf("%*s- channel masks:", spaces, ""));
         for (auto it = mChannelMasks.begin(); it != mChannelMasks.end();) {
             dst->append(base::StringPrintf("0x%04x", *it));
             dst->append(++it == mChannelMasks.end() ? "" : ", ");
@@ -124,20 +126,19 @@ void AudioProfile::dump(std::string *dst, int spaces) const
     }
 
     dst->append(base::StringPrintf(
-             "%*s%s\n", spaces, "", audio_encapsulation_type_to_string(mEncapsulationType)));
+            "%*s- encapsulation type: %#x\n", spaces, "", mEncapsulationType));
 }
 
-bool AudioProfile::equals(const sp<AudioProfile>& other, bool ignoreDynamicFlags) const
+bool AudioProfile::equals(const sp<AudioProfile>& other) const
 {
     return other != nullptr &&
            mName.compare(other->mName) == 0 &&
            mFormat == other->getFormat() &&
            mChannelMasks == other->getChannels() &&
            mSamplingRates == other->getSampleRates() &&
-           (ignoreDynamicFlags ||
-               (mIsDynamicFormat == other->isDynamicFormat() &&
-               mIsDynamicChannels == other->isDynamicChannels() &&
-               mIsDynamicRate == other->isDynamicRate())) &&
+           mIsDynamicFormat == other->isDynamicFormat() &&
+           mIsDynamicChannels == other->isDynamicChannels() &&
+           mIsDynamicRate == other->isDynamicRate() &&
            mEncapsulationType == other->getEncapsulationType();
 }
 
@@ -153,88 +154,67 @@ AudioProfile& AudioProfile::operator=(const AudioProfile& other) {
     return *this;
 }
 
-ConversionResult<AudioProfile::Aidl>
-AudioProfile::toParcelable(bool isInput) const {
-    media::audio::common::AudioProfile parcelable = VALUE_OR_RETURN(toCommonParcelable(isInput));
-    media::AudioProfileSys parcelableSys;
-    parcelableSys.isDynamicFormat = mIsDynamicFormat;
-    parcelableSys.isDynamicChannels = mIsDynamicChannels;
-    parcelableSys.isDynamicRate = mIsDynamicRate;
-    return std::make_pair(parcelable, parcelableSys);
-}
+status_t AudioProfile::writeToParcel(Parcel *parcel) const {
+    media::AudioProfile parcelable = VALUE_OR_RETURN_STATUS(toParcelable());
+    return parcelable.writeToParcel(parcel);
+ }
 
-ConversionResult<sp<AudioProfile>> AudioProfile::fromParcelable(
-        const AudioProfile::Aidl& aidl, bool isInput) {
-    sp<AudioProfile> legacy = VALUE_OR_RETURN(fromCommonParcelable(aidl.first, isInput));
-    const auto& parcelableSys = aidl.second;
-    legacy->mIsDynamicFormat = parcelableSys.isDynamicFormat;
-    legacy->mIsDynamicChannels = parcelableSys.isDynamicChannels;
-    legacy->mIsDynamicRate = parcelableSys.isDynamicRate;
-    return legacy;
-}
-
-ConversionResult<media::audio::common::AudioProfile>
-AudioProfile::toCommonParcelable(bool isInput) const {
-    media::audio::common::AudioProfile parcelable;
+ConversionResult<media::AudioProfile>
+AudioProfile::toParcelable() const {
+    media::AudioProfile parcelable;
     parcelable.name = mName;
-    parcelable.format = VALUE_OR_RETURN(
-            legacy2aidl_audio_format_t_AudioFormatDescription(mFormat));
-    // Note: legacy 'audio_profile' imposes a limit on the number of
-    // channel masks and sampling rates. That's why it's not used here
-    // and conversions are performed directly on the fields instead
-    // of using 'legacy2aidl_audio_profile_AudioProfile' from AidlConversion.
+    parcelable.format = VALUE_OR_RETURN(legacy2aidl_audio_format_t_AudioFormat(mFormat));
     parcelable.channelMasks = VALUE_OR_RETURN(
-            convertContainer<std::vector<AudioChannelLayout>>(
-            mChannelMasks,
-            [isInput](audio_channel_mask_t m) {
-                return legacy2aidl_audio_channel_mask_t_AudioChannelLayout(m, isInput);
-            }));
-    parcelable.sampleRates = VALUE_OR_RETURN(
+            convertContainer<std::vector<int32_t>>(mChannelMasks,
+                                                   legacy2aidl_audio_channel_mask_t_int32_t));
+    parcelable.samplingRates = VALUE_OR_RETURN(
             convertContainer<std::vector<int32_t>>(mSamplingRates,
                                                    convertIntegral<int32_t, uint32_t>));
+    parcelable.isDynamicFormat = mIsDynamicFormat;
+    parcelable.isDynamicChannels = mIsDynamicChannels;
+    parcelable.isDynamicRate = mIsDynamicRate;
     parcelable.encapsulationType = VALUE_OR_RETURN(
             legacy2aidl_audio_encapsulation_type_t_AudioEncapsulationType(mEncapsulationType));
     return parcelable;
 }
 
-ConversionResult<sp<AudioProfile>> AudioProfile::fromCommonParcelable(
-        const media::audio::common::AudioProfile& aidl, bool isInput) {
+status_t AudioProfile::readFromParcel(const Parcel *parcel) {
+    media::AudioProfile parcelable;
+    if (status_t status = parcelable.readFromParcel(parcel); status != OK) {
+        return status;
+    }
+    *this = *VALUE_OR_RETURN_STATUS(fromParcelable(parcelable));
+    return OK;
+}
+
+ConversionResult<sp<AudioProfile>>
+AudioProfile::fromParcelable(const media::AudioProfile& parcelable) {
     sp<AudioProfile> legacy = new AudioProfile();
-    legacy->mName = aidl.name;
-    legacy->mFormat = VALUE_OR_RETURN(
-            aidl2legacy_AudioFormatDescription_audio_format_t(aidl.format));
+    legacy->mName = parcelable.name;
+    legacy->mFormat = VALUE_OR_RETURN(aidl2legacy_AudioFormat_audio_format_t(parcelable.format));
     legacy->mChannelMasks = VALUE_OR_RETURN(
-            convertContainer<ChannelMaskSet>(aidl.channelMasks,
-            [isInput](const AudioChannelLayout& l) {
-                return aidl2legacy_AudioChannelLayout_audio_channel_mask_t(l, isInput);
-            }));
+            convertContainer<ChannelMaskSet>(parcelable.channelMasks,
+                                             aidl2legacy_int32_t_audio_channel_mask_t));
     legacy->mSamplingRates = VALUE_OR_RETURN(
-            convertContainer<SampleRateSet>(aidl.sampleRates,
+            convertContainer<SampleRateSet>(parcelable.samplingRates,
                                             convertIntegral<uint32_t, int32_t>));
+    legacy->mIsDynamicFormat = parcelable.isDynamicFormat;
+    legacy->mIsDynamicChannels = parcelable.isDynamicChannels;
+    legacy->mIsDynamicRate = parcelable.isDynamicRate;
     legacy->mEncapsulationType = VALUE_OR_RETURN(
             aidl2legacy_AudioEncapsulationType_audio_encapsulation_type_t(
-                    aidl.encapsulationType));
+                    parcelable.encapsulationType));
     return legacy;
 }
 
 ConversionResult<sp<AudioProfile>>
-aidl2legacy_AudioProfile(const AudioProfile::Aidl& aidl, bool isInput) {
-    return AudioProfile::fromParcelable(aidl, isInput);
+aidl2legacy_AudioProfile(const media::AudioProfile& aidl) {
+    return AudioProfile::fromParcelable(aidl);
 }
 
-ConversionResult<AudioProfile::Aidl>
-legacy2aidl_AudioProfile(const sp<AudioProfile>& legacy, bool isInput) {
-    return legacy->toParcelable(isInput);
-}
-
-ConversionResult<sp<AudioProfile>>
-aidl2legacy_AudioProfile_common(const media::audio::common::AudioProfile& aidl, bool isInput) {
-    return AudioProfile::fromCommonParcelable(aidl, isInput);
-}
-
-ConversionResult<media::audio::common::AudioProfile>
-legacy2aidl_AudioProfile_common(const sp<AudioProfile>& legacy, bool isInput) {
-    return legacy->toCommonParcelable(isInput);
+ConversionResult<media::AudioProfile>
+legacy2aidl_AudioProfile(const sp<AudioProfile>& legacy) {
+    return legacy->toParcelable();
 }
 
 ssize_t AudioProfileVector::add(const sp<AudioProfile> &profile)
@@ -327,10 +307,10 @@ bool AudioProfileVector::hasDynamicRateFor(audio_format_t format) const
     return false;
 }
 
-bool AudioProfileVector::contains(const sp<AudioProfile>& profile, bool ignoreDynamicFlags) const
+bool AudioProfileVector::contains(const sp<AudioProfile>& profile) const
 {
     for (const auto& audioProfile : *this) {
-        if (audioProfile->equals(profile, ignoreDynamicFlags)) {
+        if (audioProfile->equals(profile)) {
             return true;
         }
     }
@@ -339,14 +319,40 @@ bool AudioProfileVector::contains(const sp<AudioProfile>& profile, bool ignoreDy
 
 void AudioProfileVector::dump(std::string *dst, int spaces) const
 {
-    dst->append(base::StringPrintf("%*s- Profiles (%zu):\n", spaces - 2, "", size()));
+    dst->append(base::StringPrintf("%*s- Profiles:\n", spaces, ""));
     for (size_t i = 0; i < size(); i++) {
-        const std::string prefix = base::StringPrintf("%*s %zu. ", spaces, "", i + 1);
-        dst->append(prefix);
+        dst->append(base::StringPrintf("%*sProfile %zu:", spaces + 4, "", i));
         std::string profileStr;
-        at(i)->dump(&profileStr, prefix.size());
+        at(i)->dump(&profileStr, spaces + 8);
         dst->append(profileStr);
     }
+}
+
+status_t AudioProfileVector::writeToParcel(Parcel *parcel) const
+{
+    status_t status = NO_ERROR;
+    if ((status = parcel->writeVectorSize(*this)) != NO_ERROR) return status;
+    for (const auto &audioProfile : *this) {
+        if ((status = parcel->writeParcelable(*audioProfile)) != NO_ERROR) {
+            break;
+        }
+    }
+    return status;
+}
+
+status_t AudioProfileVector::readFromParcel(const Parcel *parcel)
+{
+    status_t status = NO_ERROR;
+    this->clear();
+    if ((status = parcel->resizeOutVector(this)) != NO_ERROR) return status;
+    for (size_t i = 0; i < this->size(); ++i) {
+        this->at(i) = new AudioProfile(AUDIO_FORMAT_DEFAULT, AUDIO_CHANNEL_NONE, 0 /*sampleRate*/);
+        if ((status = parcel->readParcelable(this->at(i).get())) != NO_ERROR) {
+            this->clear();
+            break;
+        }
+    }
+    return status;
 }
 
 bool AudioProfileVector::equals(const AudioProfileVector& other) const
@@ -357,31 +363,14 @@ bool AudioProfileVector::equals(const AudioProfileVector& other) const
                       });
 }
 
-void AudioProfileVector::addAllValidProfiles(const AudioProfileVector& audioProfiles) {
-    for (const auto& audioProfile : audioProfiles) {
-        if (audioProfile->isValid() && !contains(audioProfile, true /*ignoreDynamicFlags*/)) {
-            add(audioProfile);
-        }
-    }
-}
-
 ConversionResult<AudioProfileVector>
-aidl2legacy_AudioProfileVector(const AudioProfileVector::Aidl& aidl, bool isInput) {
-    return convertContainers<AudioProfileVector>(aidl.first, aidl.second,
-            [isInput](const media::audio::common::AudioProfile& p,
-                      const media::AudioProfileSys& ps) {
-                return aidl2legacy_AudioProfile(std::make_pair(p, ps), isInput);
-            });
+aidl2legacy_AudioProfileVector(const std::vector<media::AudioProfile>& aidl) {
+    return convertContainer<AudioProfileVector>(aidl, aidl2legacy_AudioProfile);
 }
 
-ConversionResult<AudioProfileVector::Aidl>
-legacy2aidl_AudioProfileVector(const AudioProfileVector& legacy, bool isInput) {
-    return convertContainerSplit<
-            std::vector<media::audio::common::AudioProfile>,
-            std::vector<media::AudioProfileSys>>(legacy,
-            [isInput](const sp<AudioProfile>& p) {
-                return legacy2aidl_AudioProfile(p, isInput);
-            });
+ConversionResult<std::vector<media::AudioProfile>>
+legacy2aidl_AudioProfileVector(const AudioProfileVector& legacy) {
+    return convertContainer<std::vector<media::AudioProfile>>(legacy, legacy2aidl_AudioProfile);
 }
 
 AudioProfileVector intersectAudioProfiles(const AudioProfileVector& profiles1,

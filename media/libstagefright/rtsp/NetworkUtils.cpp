@@ -20,7 +20,7 @@
 #define LOG_TAG "NetworkUtils"
 #include <utils/Log.h>
 
-#include <media/stagefright/rtsp/NetworkUtils.h>
+#include "NetworkUtils.h"
 #include <cutils/qtaguid.h>
 #include <NetdClient.h>
 

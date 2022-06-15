@@ -12,8 +12,10 @@ cc_library_shared {
 
     srcs: ["HTTPHelper.cpp"],
 
-    header_libs: [
-        "libstagefright_headers",
+    include_dirs: [
+        "frameworks/av/media/libstagefright",
+        "frameworks/native/include/media/openmax",
+        "frameworks/base/core/jni",
     ],
 
     shared_libs: [

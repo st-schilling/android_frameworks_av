@@ -97,8 +97,6 @@ struct AMediaDrm {
     List<idvec_t> mIds;
     KeyedVector<String8, String8> mQueryResults;
     Vector<uint8_t> mKeyRequest;
-    String8 mDefaultUrl;
-    AMediaDrmKeyRequestType mkeyRequestType;
     Vector<uint8_t> mProvisionRequest;
     String8 mProvisionUrl;
     String8 mPropertyString;
@@ -418,21 +416,6 @@ media_status_t AMediaDrm_getKeyRequest(AMediaDrm *mObj, const AMediaDrmScope *sc
         const AMediaDrmKeyValue *optionalParameters, size_t numOptionalParameters,
         const uint8_t **keyRequest, size_t *keyRequestSize) {
 
-    return AMediaDrm_getKeyRequestWithDefaultUrlAndType(mObj,
-        scope, init, initSize, mimeType, keyType, optionalParameters,
-        numOptionalParameters, keyRequest,
-        keyRequestSize, NULL, NULL);
-}
-
-EXPORT
-media_status_t AMediaDrm_getKeyRequestWithDefaultUrlAndType(AMediaDrm *mObj,
-        const AMediaDrmScope *scope, const uint8_t *init, size_t initSize,
-        const char *mimeType, AMediaDrmKeyType keyType,
-        const AMediaDrmKeyValue *optionalParameters,
-        size_t numOptionalParameters, const uint8_t **keyRequest,
-        size_t *keyRequestSize, const char **defaultUrl,
-        AMediaDrmKeyRequestType *keyRequestType) {
-
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
@@ -466,43 +449,18 @@ media_status_t AMediaDrm_getKeyRequestWithDefaultUrlAndType(AMediaDrm *mObj,
         mdOptionalParameters.add(String8(optionalParameters[i].mKey),
                 String8(optionalParameters[i].mValue));
     }
-
-    DrmPlugin::KeyRequestType requestType;
+    String8 defaultUrl;
+    DrmPlugin::KeyRequestType keyRequestType;
     mObj->mKeyRequest.clear();
     status_t status = mObj->mDrm->getKeyRequest(*iter, mdInit, String8(mimeType),
-            mdKeyType, mdOptionalParameters, mObj->mKeyRequest, mObj->mDefaultUrl,
-            &requestType);
+            mdKeyType, mdOptionalParameters, mObj->mKeyRequest, defaultUrl,
+            &keyRequestType);
     if (status != OK) {
         return translateStatus(status);
     } else {
         *keyRequest = mObj->mKeyRequest.array();
         *keyRequestSize = mObj->mKeyRequest.size();
-        if (defaultUrl != NULL)
-            *defaultUrl = mObj->mDefaultUrl.string();
-        switch(requestType) {
-            case DrmPlugin::kKeyRequestType_Initial:
-                mObj->mkeyRequestType = KEY_REQUEST_TYPE_INITIAL;
-                break;
-            case DrmPlugin::kKeyRequestType_Renewal:
-                mObj->mkeyRequestType = KEY_REQUEST_TYPE_RENEWAL;
-                break;
-            case DrmPlugin::kKeyRequestType_Release:
-                mObj->mkeyRequestType = KEY_REQUEST_TYPE_RELEASE;
-                break;
-            case DrmPlugin::kKeyRequestType_None:
-                mObj->mkeyRequestType = KEY_REQUEST_TYPE_NONE;
-                break;
-            case DrmPlugin::kKeyRequestType_Update:
-                mObj->mkeyRequestType = KEY_REQUEST_TYPE_UPDATE;
-                break;
-            default:
-                return AMEDIA_ERROR_UNKNOWN;
-        }
-
-        if (keyRequestType != NULL)
-            *keyRequestType = mObj->mkeyRequestType;
     }
-
     return AMEDIA_OK;
 }
 

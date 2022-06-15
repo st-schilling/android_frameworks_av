@@ -17,21 +17,21 @@
 #include <algorithm>
 #include <unistd.h>
 
-#include "FlowGraphNode.h"
-#include "SourceI16.h"
-
-#if FLOWGRAPH_ANDROID_INTERNAL
+#ifdef __ANDROID__
 #include <audio_utils/primitives.h>
 #endif
 
-using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
+#include "AudioProcessorBase.h"
+#include "SourceI16.h"
+
+using namespace flowgraph;
 
 SourceI16::SourceI16(int32_t channelCount)
-        : FlowGraphSourceBuffered(channelCount) {
+        : AudioSource(channelCount) {
 }
 
-int32_t SourceI16::onProcess(int32_t numFrames) {
-    float *floatData = output.getBuffer();
+int32_t SourceI16::onProcess(int64_t framePosition, int32_t numFrames) {
+    float *floatData = output.getBlock();
     int32_t channelCount = output.getSamplesPerFrame();
 
     int32_t framesLeft = mSizeInFrames - mFrameIndex;
@@ -41,7 +41,7 @@ int32_t SourceI16::onProcess(int32_t numFrames) {
     const int16_t *shortBase = static_cast<const int16_t *>(mData);
     const int16_t *shortData = &shortBase[mFrameIndex * channelCount];
 
-#if FLOWGRAPH_ANDROID_INTERNAL
+#ifdef __ANDROID__
     memcpy_to_float_from_i16(floatData, shortData, numSamples);
 #else
     for (int i = 0; i < numSamples; i++) {

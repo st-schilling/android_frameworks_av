@@ -590,10 +590,9 @@ android_dataspace ColorUtils::getDataSpaceForColorAspects(ColorAspects &aspects,
     uint32_t gfxRange = range;
     uint32_t gfxStandard = standard;
     uint32_t gfxTransfer = transfer;
-    bool mappedRange = sGfxRanges.map(range, &gfxRange);
-    bool mappedStandard = sGfxStandards.map(standard, &gfxStandard);
-    bool mappedTransfer = sGfxTransfers.map(transfer, &gfxTransfer);
-    if (! (mappedRange && mappedStandard && mappedTransfer)) {
+    // TRICKY: use & to ensure all three mappings are completed
+    if (!(sGfxRanges.map(range, &gfxRange) & sGfxStandards.map(standard, &gfxStandard)
+            & sGfxTransfers.map(transfer, &gfxTransfer))) {
         ALOGW("could not safely map platform color aspects (R:%u(%s) S:%u(%s) T:%u(%s) to "
               "graphics dataspace (R:%u S:%u T:%u)",
               range, asString(range), standard, asString(standard), transfer, asString(transfer),
@@ -627,10 +626,9 @@ void ColorUtils::getColorConfigFromDataSpace(
     CU::ColorRange    cuRange    = CU::kColorRangeUnspecified;
     CU::ColorStandard cuStandard = CU::kColorStandardUnspecified;
     CU::ColorTransfer cuTransfer = CU::kColorTransferUnspecified;
-    bool mappedRange = sGfxRanges.map(gfxRange, &cuRange);
-    bool mappedStandard = sGfxStandards.map(gfxStandard, &cuStandard);
-    bool mappedTransfer = sGfxTransfers.map(gfxTransfer, &cuTransfer);
-    if (! (mappedRange && mappedStandard && mappedTransfer)) {
+    // TRICKY: use & to ensure all three mappings are completed
+    if (!(sGfxRanges.map(gfxRange, &cuRange) & sGfxStandards.map(gfxStandard, &cuStandard)
+            & sGfxTransfers.map(gfxTransfer, &cuTransfer))) {
         ALOGW("could not safely map graphics dataspace (R:%u S:%u T:%u) to "
               "platform color aspects (R:%u(%s) S:%u(%s) T:%u(%s)",
               gfxRange, gfxStandard, gfxTransfer,
@@ -781,15 +779,6 @@ bool ColorUtils::getHDRStaticInfoFromFormat(const sp<AMessage> &format, HDRStati
             info->sType1.mMaxDisplayLuminance, info->sType1.mMinDisplayLuminance,
             info->sType1.mMaxContentLightLevel, info->sType1.mMaxFrameAverageLightLevel);
     return true;
-}
-
-// static
-bool ColorUtils::isHDRStaticInfoValid(HDRStaticInfo *info) {
-    if (info->sType1.mMaxDisplayLuminance > 0.0f
-        && info->sType1.mMinDisplayLuminance > 0.0f)  return true;
-    if (info->sType1.mMaxContentLightLevel > 0.0f
-        && info->sType1.mMaxFrameAverageLightLevel > 0.0f)  return true;
-    return false;
 }
 
 }  // namespace android

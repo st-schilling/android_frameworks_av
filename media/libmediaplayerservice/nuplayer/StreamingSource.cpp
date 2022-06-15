@@ -20,6 +20,8 @@
 
 #include "StreamingSource.h"
 
+#include "ATSParser.h"
+#include "AnotherPacketSource.h"
 #include "NuPlayerStreamListener.h"
 
 #include <media/stagefright/MediaSource.h>
@@ -29,8 +31,6 @@
 #include <media/stagefright/foundation/MediaKeys.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
-#include <mpeg2ts/AnotherPacketSource.h>
-#include <mpeg2ts/ATSParser.h>
 
 namespace android {
 

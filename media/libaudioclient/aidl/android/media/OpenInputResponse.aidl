@@ -16,8 +16,8 @@
 
 package android.media;
 
-import android.media.audio.common.AudioConfig;
-import android.media.audio.common.AudioDevice;
+import android.media.AudioConfig;
+import android.media.AudioDevice;
 
 /**
  * {@hide}

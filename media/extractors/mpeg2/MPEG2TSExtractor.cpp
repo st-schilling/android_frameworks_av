@@ -35,8 +35,9 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
-#include <mpeg2ts/AnotherPacketSource.h>
 #include <utils/String8.h>
+
+#include <AnotherPacketSource.h>
 
 #include <hidl/HybridInterface.h>
 #include <android/hardware/cas/1.0/ICas.h>

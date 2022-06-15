@@ -19,7 +19,10 @@ cc_library {
 
     srcs: ["C2SoftAvcDec.cpp"],
 
-    export_include_dirs: ["."],
+    include_dirs: [
+        "external/libavc/decoder",
+        "external/libavc/common",
+    ],
 }
 
 cc_library {
@@ -34,7 +37,10 @@ cc_library {
 
     srcs: ["C2SoftAvcEnc.cpp"],
 
-    export_include_dirs: ["."],
+    include_dirs: [
+        "external/libavc/encoder",
+        "external/libavc/common",
+    ],
 
     cflags: [
         "-Wno-unused-variable",

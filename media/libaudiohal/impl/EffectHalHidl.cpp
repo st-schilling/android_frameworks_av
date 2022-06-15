@@ -21,7 +21,6 @@
 #include <cutils/native_handle.h>
 #include <hwbinder/IPCThreadState.h>
 #include <media/EffectsFactoryApi.h>
-#include <mediautils/TimeCheck.h>
 #include <utils/Log.h>
 
 #include <util/EffectUtils.h>
@@ -37,16 +36,13 @@ using ::android::hardware::Return;
 
 namespace android {
 namespace effect {
+namespace CPP_VERSION {
 
 using namespace ::android::hardware::audio::common::CPP_VERSION;
 using namespace ::android::hardware::audio::effect::CPP_VERSION;
 
-#define TIME_CHECK() auto timeCheck = \
-        mediautils::makeTimeCheckStatsForClassMethod(getClassName(), __func__)
-
 EffectHalHidl::EffectHalHidl(const sp<IEffect>& effect, uint64_t effectId)
-        : EffectConversionHelperHidl("EffectHalHidl"),
-          mEffect(effect), mEffectId(effectId), mBuffersChanged(true), mEfGroup(nullptr) {
+        : mEffect(effect), mEffectId(effectId), mBuffersChanged(true), mEfGroup(nullptr) {
     effect_descriptor_t halDescriptor{};
     if (EffectHalHidl::getDescriptor(&halDescriptor) == NO_ERROR) {
         mIsInput = (halDescriptor.flags & EFFECT_FLAG_TYPE_PRE_PROC) == EFFECT_FLAG_TYPE_PRE_PROC;
@@ -64,9 +60,20 @@ EffectHalHidl::~EffectHalHidl() {
     }
 }
 
-status_t EffectHalHidl::setInBuffer(const sp<EffectBufferHalInterface>& buffer) {
-    TIME_CHECK();
+// static
+status_t EffectHalHidl::analyzeResult(const Result& result) {
+    switch (result) {
+        case Result::OK: return OK;
+        case Result::INVALID_ARGUMENTS: return BAD_VALUE;
+        case Result::INVALID_STATE: return NOT_ENOUGH_DATA;
+        case Result::NOT_INITIALIZED: return NO_INIT;
+        case Result::NOT_SUPPORTED: return INVALID_OPERATION;
+        case Result::RESULT_TOO_BIG: return NO_MEMORY;
+        default: return NO_INIT;
+    }
+}
 
+status_t EffectHalHidl::setInBuffer(const sp<EffectBufferHalInterface>& buffer) {
     if (!mBuffersChanged) {
         if (buffer.get() == nullptr || mInBuffer.get() == nullptr) {
             mBuffersChanged = buffer.get() != mInBuffer.get();
@@ -79,8 +86,6 @@ status_t EffectHalHidl::setInBuffer(const sp<EffectBufferHalInterface>& buffer) 
 }
 
 status_t EffectHalHidl::setOutBuffer(const sp<EffectBufferHalInterface>& buffer) {
-    TIME_CHECK();
-
     if (!mBuffersChanged) {
         if (buffer.get() == nullptr || mOutBuffer.get() == nullptr) {
             mBuffersChanged = buffer.get() != mOutBuffer.get();
@@ -93,14 +98,10 @@ status_t EffectHalHidl::setOutBuffer(const sp<EffectBufferHalInterface>& buffer)
 }
 
 status_t EffectHalHidl::process() {
-    TIME_CHECK();
-
     return processImpl(static_cast<uint32_t>(MessageQueueFlagBits::REQUEST_PROCESS));
 }
 
 status_t EffectHalHidl::processReverse() {
-    TIME_CHECK();
-
     return processImpl(static_cast<uint32_t>(MessageQueueFlagBits::REQUEST_PROCESS_REVERSE));
 }
 
@@ -183,8 +184,6 @@ status_t EffectHalHidl::setProcessBuffers() {
 
 status_t EffectHalHidl::command(uint32_t cmdCode, uint32_t cmdSize, void *pCmdData,
         uint32_t *replySize, void *pReplyData) {
-    TIME_CHECK();
-
     if (mEffect == 0) return NO_INIT;
 
     // Special cases.
@@ -216,8 +215,6 @@ status_t EffectHalHidl::command(uint32_t cmdCode, uint32_t cmdSize, void *pCmdDa
 }
 
 status_t EffectHalHidl::getDescriptor(effect_descriptor_t *pDescriptor) {
-    TIME_CHECK();
-
     if (mEffect == 0) return NO_INIT;
     Result retval = Result::NOT_INITIALIZED;
     Return<void> ret = mEffect->getDescriptor(
@@ -231,16 +228,12 @@ status_t EffectHalHidl::getDescriptor(effect_descriptor_t *pDescriptor) {
 }
 
 status_t EffectHalHidl::close() {
-    TIME_CHECK();
-
     if (mEffect == 0) return NO_INIT;
     Return<Result> ret = mEffect->close();
     return ret.isOk() ? analyzeResult(ret) : FAILED_TRANSACTION;
 }
 
 status_t EffectHalHidl::dump(int fd) {
-    TIME_CHECK();
-
     if (mEffect == 0) return NO_INIT;
     native_handle_t* hidlHandle = native_handle_create(1, 0);
     hidlHandle->data[0] = fd;
@@ -317,5 +310,6 @@ status_t EffectHalHidl::setConfigImpl(
     return result;
 }
 
+} // namespace CPP_VERSION
 } // namespace effect
 } // namespace android

@@ -65,14 +65,10 @@ cc_library {
         "libstagefright_foundation",
         "libstagefright_httplive",
         "libutils",
-        "packagemanager_aidl-cpp",
     ],
 
     header_libs: [
         "media_plugin_headers",
-        "libmediautils_headers",
-        "libstagefright_rtsp_headers",
-        "libstagefright_webm_headers",
     ],
 
     static_libs: [
@@ -88,15 +84,12 @@ cc_library {
         "framework-permission-aidl-cpp",
     ],
 
-    export_header_lib_headers: [
-        "libmediautils_headers",
+    include_dirs: [
+        "frameworks/av/media/libstagefright/rtsp",
+        "frameworks/av/media/libstagefright/webm",
     ],
 
     local_include_dirs: ["include"],
-
-    export_include_dirs: [
-        ".",
-    ],
 
     cflags: [
         "-Werror",

@@ -25,24 +25,8 @@ package {
 
 cc_test {
     name: "CodecListTest",
-    test_suites: ["device-tests", "mts"],
+    test_suites: ["device-tests"],
     gtest: true,
-
-    // Support multilib variants (using different suffix per sub-architecture), which is needed on
-    // build targets with secondary architectures, as the MTS test suite packaging logic flattens
-    // all test artifacts into a single `testcases` directory.
-    compile_multilib: "both",
-    multilib: {
-        lib32: {
-            suffix: "32",
-        },
-        lib64: {
-            suffix: "64",
-        },
-    },
-
-    // used within mainline MTS, but only to R, not to Q.
-    min_sdk_version: "30",
 
     srcs: [
         "CodecListTest.cpp",
@@ -51,7 +35,7 @@ cc_test {
     shared_libs: [
         "libbinder",
         "liblog",
-        "libmedia_codeclist", // available >= R
+        "libmedia_codeclist",
         "libstagefright",
         "libstagefright_foundation",
         "libstagefright_xmlparser",

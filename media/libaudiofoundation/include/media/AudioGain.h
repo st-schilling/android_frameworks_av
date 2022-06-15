@@ -16,23 +16,23 @@
 
 #pragma once
 
-#include <string>
-#include <utility>
-#include <vector>
-
-#include <android/media/AudioGainSys.h>
+#include <android/media/AudioGain.h>
+#include <binder/Parcel.h>
+#include <binder/Parcelable.h>
 #include <media/AidlConversion.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <system/audio.h>
+#include <string>
+#include <vector>
 
 namespace android {
 
-class AudioGain: public RefBase
+class AudioGain: public RefBase, public Parcelable
 {
 public:
-    AudioGain(int index, bool isInput);
-    virtual ~AudioGain() = default;
+    AudioGain(int index, bool useInChannelMask);
+    virtual ~AudioGain() {}
 
     void setMode(audio_gain_mode_t mode) { mGain.mode = mode; }
     const audio_gain_mode_t &getMode() const { return mGain.mode; }
@@ -71,24 +71,26 @@ public:
 
     bool equals(const sp<AudioGain>& other) const;
 
-    using Aidl = std::pair<media::audio::common::AudioGain, media::AudioGainSys>;
-    ConversionResult<Aidl> toParcelable() const;
-    static ConversionResult<sp<AudioGain>> fromParcelable(const Aidl& aidl);
+    status_t writeToParcel(Parcel* parcel) const override;
+    status_t readFromParcel(const Parcel* parcel) override;
+
+    status_t writeToParcelable(media::AudioGain* parcelable) const;
+    status_t readFromParcelable(const media::AudioGain& parcelable);
 
 private:
     int               mIndex;
-    bool              mIsInput;
-    struct audio_gain mGain = {};
+    struct audio_gain mGain;
+    bool              mUseInChannelMask;
     bool              mUseForVolume = false;
 };
 
 // Conversion routines, according to AidlConversion.h conventions.
 ConversionResult<sp<AudioGain>>
-aidl2legacy_AudioGain(const AudioGain::Aidl& aidl);
-ConversionResult<AudioGain::Aidl>
+aidl2legacy_AudioGain(const media::AudioGain& aidl);
+ConversionResult<media::AudioGain>
 legacy2aidl_AudioGain(const sp<AudioGain>& legacy);
 
-class AudioGains : public std::vector<sp<AudioGain>>
+class AudioGains : public std::vector<sp<AudioGain> >, public Parcelable
 {
 public:
     bool canUseForVolume() const
@@ -101,7 +103,7 @@ public:
         return false;
     }
 
-    int32_t add(const sp<AudioGain>& gain)
+    int32_t add(const sp<AudioGain> gain)
     {
         push_back(gain);
         return 0;
@@ -109,15 +111,14 @@ public:
 
     bool equals(const AudioGains& other) const;
 
-    using Aidl = std::pair<
-            std::vector<media::audio::common::AudioGain>,
-            std::vector<media::AudioGainSys>>;
+    status_t writeToParcel(Parcel* parcel) const override;
+    status_t readFromParcel(const Parcel* parcel) override;
 };
 
 // Conversion routines, according to AidlConversion.h conventions.
 ConversionResult<AudioGains>
-aidl2legacy_AudioGains(const AudioGains::Aidl& aidl);
-ConversionResult<AudioGains::Aidl>
+aidl2legacy_AudioGains(const std::vector<media::AudioGain>& aidl);
+ConversionResult<std::vector<media::AudioGain>>
 legacy2aidl_AudioGains(const AudioGains& legacy);
 
 } // namespace android

@@ -1,5 +1,5 @@
 /**
- * Copyright 2021, The Android Open Source Project
+ * Copyright 2020, The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,10 @@
 
 package android.media.tv.tuner;
 
-import android.hardware.tv.tuner.FrontendScanType;
-import android.hardware.tv.tuner.FrontendSettings;
-import android.hardware.tv.tuner.FrontendStatus;
-import android.hardware.tv.tuner.FrontendStatusReadiness;
-import android.hardware.tv.tuner.FrontendStatusType;
 import android.media.tv.tuner.ITunerFrontendCallback;
 import android.media.tv.tuner.ITunerLnb;
+import android.media.tv.tuner.TunerFrontendSettings;
+import android.media.tv.tuner.TunerFrontendStatus;
 
 /**
  * Tuner Frontend interface handles frontend related operations.
@@ -42,7 +39,7 @@ interface ITunerFrontend {
      *
      * @param settings the settings to tune with.
      */
-    void tune(in FrontendSettings settings);
+    void tune(in TunerFrontendSettings settings);
 
     /**
      * Stop the previous tuning.
@@ -55,7 +52,7 @@ interface ITunerFrontend {
      * @param settings the settings to scan with.
      * @param frontendScanType scan with given type.
      */
-    void scan(in FrontendSettings settings, in FrontendScanType frontendScanType);
+    void scan(in TunerFrontendSettings settings, in int frontendScanType);
 
     /**
      * Stop the previous scanning.
@@ -68,6 +65,13 @@ interface ITunerFrontend {
      * @param tuner lnb interface.
      */
     void setLnb(in ITunerLnb lnb);
+
+    /**
+     * Enable or Disable Low Noise Amplifier (LNA).
+     *
+     * @param bEnable enable Lna or not.
+     */
+    void setLna(in boolean bEnable);
 
     /**
      * Link Frontend to the cicam with given id.
@@ -89,25 +93,15 @@ interface ITunerFrontend {
     /**
      * Gets the statuses of the frontend.
      */
-    FrontendStatus[] getStatus(in FrontendStatusType[] statusTypes);
+    TunerFrontendStatus[] getStatus(in int[] statusTypes);
+
+    /**
+     * Gets the 1.1 extended statuses of the frontend.
+     */
+    TunerFrontendStatus[] getStatusExtended_1_1(in int[] statusTypes);
 
     /**
      * Gets the id of the frontend.
      */
     int getFrontendId();
-
-    /**
-     * Request hardware information about the frontend.
-     */
-    String getHardwareInfo();
-
-    /**
-     * Filter out unnecessary PID from frontend output.
-     */
-    void removeOutputPid(int pid);
-
-    /**
-     * Gets FrontendStatus’ readiness statuses for given status types.
-     */
-    FrontendStatusReadiness[] getFrontendStatusReadiness(in FrontendStatusType[] statusTypes);
 }

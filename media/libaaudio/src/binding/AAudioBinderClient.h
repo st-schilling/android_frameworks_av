@@ -108,10 +108,7 @@ public:
         return AAUDIO_ERROR_UNAVAILABLE;
     }
 
-    aaudio_result_t exitStandby(aaudio_handle_t streamHandle,
-                                AudioEndpointParcelable &endpointOut) override;
-
-    void onStreamChange(aaudio_handle_t /*handle*/, int32_t /*opcode*/, int32_t /*value*/) {
+    void onStreamChange(aaudio_handle_t handle, int32_t opcode, int32_t value) {
         // TODO This is just a stub so we can have a client Binder to pass to the service.
         // TODO Implemented in a later CL.
         ALOGW("onStreamChange called!");
@@ -119,7 +116,7 @@ public:
 
     class AAudioClient : public android::IBinder::DeathRecipient, public BnAAudioClient {
     public:
-        explicit AAudioClient(const android::wp<AAudioBinderClient>& aaudioBinderClient)
+        AAudioClient(android::wp<AAudioBinderClient> aaudioBinderClient)
                 : mBinderClient(aaudioBinderClient) {
         }
 
@@ -153,10 +150,10 @@ public:
     class Adapter : public AAudioBinderAdapter {
     public:
         Adapter(const android::sp<IAAudioService>& delegate,
-                android::sp<AAudioClient> aaudioClient)
+                const android::sp<AAudioClient>& aaudioClient)
                 : AAudioBinderAdapter(delegate.get()),
                   mDelegate(delegate),
-                  mAAudioClient(std::move(aaudioClient)) {}
+                  mAAudioClient(aaudioClient) {}
 
         virtual ~Adapter() {
             if (mDelegate != nullptr) {

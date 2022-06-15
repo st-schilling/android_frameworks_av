@@ -117,35 +117,6 @@ aaudio_result_t AAudioServiceStreamMMAP::stop_l() {
     return result;
 }
 
-aaudio_result_t AAudioServiceStreamMMAP::standby_l() {
-    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
-    if (endpoint == nullptr) {
-        ALOGE("%s() has no endpoint", __func__);
-        return AAUDIO_ERROR_INVALID_STATE;
-    }
-    aaudio_result_t result = endpoint->standby();
-    if (result == AAUDIO_OK) {
-        setStandby_l(true);
-    }
-    return result;
-}
-
-aaudio_result_t AAudioServiceStreamMMAP::exitStandby_l(AudioEndpointParcelable* parcelable) {
-    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
-    if (endpoint == nullptr) {
-        ALOGE("%s() has no endpoint", __func__);
-        return AAUDIO_ERROR_INVALID_STATE;
-    }
-    aaudio_result_t result = endpoint->exitStandby(parcelable);
-    if (result == AAUDIO_OK) {
-        setStandby_l(false);
-    } else {
-        ALOGE("%s failed, result %d, disconnecting stream.", __func__, result);
-        disconnect_l();
-    }
-    return result;
-}
-
 aaudio_result_t AAudioServiceStreamMMAP::startClient(const android::AudioClient& client,
                                                      const audio_attributes_t *attr,
                                                      audio_port_handle_t *clientHandle) {
@@ -170,7 +141,7 @@ aaudio_result_t AAudioServiceStreamMMAP::stopClient(audio_port_handle_t clientHa
 }
 
 // Get free-running DSP or DMA hardware position from the HAL.
-aaudio_result_t AAudioServiceStreamMMAP::getFreeRunningPosition_l(int64_t *positionFrames,
+aaudio_result_t AAudioServiceStreamMMAP::getFreeRunningPosition(int64_t *positionFrames,
                                                                   int64_t *timeNanos) {
     sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
     if (endpoint == nullptr) {
@@ -187,15 +158,16 @@ aaudio_result_t AAudioServiceStreamMMAP::getFreeRunningPosition_l(int64_t *posit
         *positionFrames = timestamp.getPosition();
         *timeNanos = timestamp.getNanoseconds();
     } else if (result != AAUDIO_ERROR_UNAVAILABLE) {
-        disconnect_l();
+        disconnect();
     }
     return result;
 }
 
 // Get timestamp from presentation position.
 // If it fails, get timestamp that was written by getFreeRunningPosition()
-aaudio_result_t AAudioServiceStreamMMAP::getHardwareTimestamp_l(int64_t *positionFrames,
+aaudio_result_t AAudioServiceStreamMMAP::getHardwareTimestamp(int64_t *positionFrames,
                                                                 int64_t *timeNanos) {
+
     sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
     if (endpoint == nullptr) {
         ALOGE("%s() has no endpoint", __func__);
@@ -204,17 +176,17 @@ aaudio_result_t AAudioServiceStreamMMAP::getHardwareTimestamp_l(int64_t *positio
     sp<AAudioServiceEndpointMMAP> serviceEndpointMMAP =
             static_cast<AAudioServiceEndpointMMAP *>(endpoint.get());
 
+    // Disable this code temporarily because the HAL is not returning
+    // a useful result.
+#if 0
     uint64_t position;
-    aaudio_result_t result = serviceEndpointMMAP->getExternalPosition(&position, timeNanos);
-    if (result == AAUDIO_OK) {
-        ALOGV("%s() getExternalPosition() says pos = %" PRIi64 ", time = %" PRIi64,
+    if (serviceEndpointMMAP->getExternalPosition(&position, timeNanos) == AAUDIO_OK) {
+        ALOGD("%s() getExternalPosition() says pos = %" PRIi64 ", time = %" PRIi64,
                 __func__, position, *timeNanos);
         *positionFrames = (int64_t) position;
         return AAUDIO_OK;
-    } else {
-        ALOGV("%s() getExternalPosition() returns error %d", __func__, result);
-    }
-
+    } else
+#endif
     if (mAtomicStreamTimestamp.isValid()) {
         Timestamp timestamp = mAtomicStreamTimestamp.read();
         *positionFrames = timestamp.getPosition();
@@ -226,8 +198,8 @@ aaudio_result_t AAudioServiceStreamMMAP::getHardwareTimestamp_l(int64_t *positio
 }
 
 // Get an immutable description of the data queue from the HAL.
-aaudio_result_t AAudioServiceStreamMMAP::getAudioDataDescription_l(
-        AudioEndpointParcelable* parcelable)
+aaudio_result_t AAudioServiceStreamMMAP::getAudioDataDescription(
+        AudioEndpointParcelable &parcelable)
 {
     sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
     if (endpoint == nullptr) {

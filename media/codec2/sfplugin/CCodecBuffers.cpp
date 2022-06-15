@@ -21,7 +21,7 @@
 #include <C2PlatformSupport.h>
 
 #include <media/stagefright/foundation/ADebug.h>
-#include <media/stagefright/foundation/MediaDefs.h>
+#include <media/stagefright/MediaCodec.h>
 #include <media/stagefright/MediaCodecConstants.h>
 #include <media/stagefright/SkipCutBuffer.h>
 #include <mediadrm/ICrypto.h>
@@ -33,9 +33,7 @@ namespace android {
 
 namespace {
 
-constexpr uint32_t PIXEL_FORMAT_UNKNOWN = 0;
-
-sp<GraphicBlockBuffer> AllocateInputGraphicBuffer(
+sp<GraphicBlockBuffer> AllocateGraphicBuffer(
         const std::shared_ptr<C2BlockPool> &pool,
         const sp<AMessage> &format,
         uint32_t pixelFormat,
@@ -47,13 +45,9 @@ sp<GraphicBlockBuffer> AllocateInputGraphicBuffer(
         return nullptr;
     }
 
-    int64_t usageValue = 0;
-    (void)format->findInt64("android._C2MemoryUsage", &usageValue);
-    C2MemoryUsage fullUsage{usageValue | usage.expected};
-
     std::shared_ptr<C2GraphicBlock> block;
     c2_status_t err = pool->fetchGraphicBlock(
-            width, height, pixelFormat, fullUsage, &block);
+            width, height, pixelFormat, usage, &block);
     if (err != C2_OK) {
         ALOGD("fetch graphic block failed: %d", err);
         return nullptr;
@@ -138,7 +132,6 @@ sp<Codec2Buffer> InputBuffers::cloneAndReleaseBuffer(const sp<MediaCodecBuffer> 
     if (!copy->copy(c2buffer)) {
         return nullptr;
     }
-    copy->meta()->extend(buffer->meta());
     return copy;
 }
 
@@ -206,61 +199,6 @@ void OutputBuffers::setSkipCutBuffer(int32_t skip, int32_t cut) {
     mSkipCutBuffer = new SkipCutBuffer(skip, cut, mChannelCount);
 }
 
-bool OutputBuffers::convert(
-        const std::shared_ptr<C2Buffer> &src, sp<Codec2Buffer> *dst) {
-    if (src && src->data().type() != C2BufferData::LINEAR) {
-        return false;
-    }
-    int32_t configEncoding = kAudioEncodingPcm16bit;
-    int32_t codecEncoding = kAudioEncodingPcm16bit;
-    if (mFormat->findInt32("android._codec-pcm-encoding", &codecEncoding)
-            && mFormat->findInt32("android._config-pcm-encoding", &configEncoding)) {
-        if (mSrcEncoding != codecEncoding || mDstEncoding != configEncoding) {
-            if (codecEncoding != configEncoding) {
-                mDataConverter = AudioConverter::Create(
-                        (AudioEncoding)codecEncoding, (AudioEncoding)configEncoding);
-                ALOGD_IF(mDataConverter, "[%s] Converter created from %d to %d",
-                         mName, codecEncoding, configEncoding);
-                mFormatWithConverter = mFormat->dup();
-                mFormatWithConverter->setInt32(KEY_PCM_ENCODING, configEncoding);
-            } else {
-                mDataConverter = nullptr;
-                mFormatWithConverter = nullptr;
-            }
-            mSrcEncoding = codecEncoding;
-            mDstEncoding = configEncoding;
-        }
-        if (int encoding; !mFormat->findInt32(KEY_PCM_ENCODING, &encoding)
-                || encoding != mDstEncoding) {
-        }
-    }
-    if (!mDataConverter) {
-        return false;
-    }
-    sp<MediaCodecBuffer> srcBuffer;
-    if (src) {
-        srcBuffer = ConstLinearBlockBuffer::Allocate(mFormat, src);
-    } else {
-        srcBuffer = new MediaCodecBuffer(mFormat, new ABuffer(0));
-    }
-    if (!srcBuffer) {
-        return false;
-    }
-    if (!*dst) {
-        *dst = new Codec2Buffer(
-                mFormat,
-                new ABuffer(mDataConverter->targetSize(srcBuffer->size())));
-    }
-    sp<MediaCodecBuffer> dstBuffer = *dst;
-    status_t err = mDataConverter->convert(srcBuffer, dstBuffer);
-    if (err != OK) {
-        ALOGD("[%s] buffer conversion failed: %d", mName, err);
-        return false;
-    }
-    dstBuffer->setFormat(mFormatWithConverter);
-    return true;
-}
-
 void OutputBuffers::clearStash() {
     mPending.clear();
     mReorderStash.clear();
@@ -298,7 +236,7 @@ void OutputBuffers::pushToStash(
         int32_t flags,
         const sp<AMessage>& format,
         const C2WorkOrdinalStruct& ordinal) {
-    bool eos = flags & BUFFER_FLAG_END_OF_STREAM;
+    bool eos = flags & MediaCodec::BUFFER_FLAG_EOS;
     if (!buffer && eos) {
         // TRICKY: we may be violating ordering of the stash here. Because we
         // don't expect any more emplace() calls after this, the ordering should
@@ -306,7 +244,7 @@ void OutputBuffers::pushToStash(
         mReorderStash.emplace_back(
                 buffer, notify, timestamp, flags, format, ordinal);
     } else {
-        flags = flags & ~BUFFER_FLAG_END_OF_STREAM;
+        flags = flags & ~MediaCodec::BUFFER_FLAG_EOS;
         auto it = mReorderStash.begin();
         for (; it != mReorderStash.end(); ++it) {
             if (less(ordinal, it->ordinal)) {
@@ -317,7 +255,7 @@ void OutputBuffers::pushToStash(
                 buffer, notify, timestamp, flags, format, ordinal);
         if (eos) {
             mReorderStash.back().flags =
-                mReorderStash.back().flags | BUFFER_FLAG_END_OF_STREAM;
+                mReorderStash.back().flags | MediaCodec::BUFFER_FLAG_EOS;
         }
     }
     while (!mReorderStash.empty() && mReorderStash.size() > mDepth) {
@@ -354,7 +292,7 @@ OutputBuffers::BufferAction OutputBuffers::popFromStashAndRegister(
 
     // Flushing mReorderStash because no other buffers should come after output
     // EOS.
-    if (entry.flags & BUFFER_FLAG_END_OF_STREAM) {
+    if (entry.flags & MediaCodec::BUFFER_FLAG_EOS) {
         // Flush reorder stash
         setReorderDepth(0);
     }
@@ -949,10 +887,6 @@ sp<Codec2Buffer> EncryptedLinearInputBuffers::Alloc(
         return nullptr;
     }
 
-    int64_t usageValue = 0;
-    (void)format->findInt64("android._C2MemoryUsage", &usageValue);
-    usage = C2MemoryUsage(usage.expected | usageValue);
-
     std::shared_ptr<C2LinearBlock> block;
     c2_status_t err = pool->fetchLinearBlock(capacity, usage, &block);
     if (err != C2_OK || block == nullptr) {
@@ -1097,7 +1031,7 @@ std::unique_ptr<InputBuffers> GraphicInputBuffers::toArrayMode(size_t size) {
             [pool = mPool, format = mFormat, lbp = mLocalBufferPool, pixelFormat]()
                     -> sp<Codec2Buffer> {
                 C2MemoryUsage usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
-                return AllocateInputGraphicBuffer(
+                return AllocateGraphicBuffer(
                         pool, format, pixelFormat, usage, lbp);
             });
     return std::move(array);
@@ -1108,8 +1042,10 @@ size_t GraphicInputBuffers::numActiveSlots() const {
 }
 
 sp<Codec2Buffer> GraphicInputBuffers::createNewBuffer() {
-    C2MemoryUsage usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
-    return AllocateInputGraphicBuffer(
+    int64_t usageValue = 0;
+    (void)mFormat->findInt64("android._C2MemoryUsage", &usageValue);
+    C2MemoryUsage usage{usageValue | C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE};
+    return AllocateGraphicBuffer(
             mPool, mFormat, extractPixelFormat(mFormat), usage, mLocalBufferPool);
 }
 
@@ -1142,7 +1078,7 @@ status_t OutputBuffersArray::registerBuffer(
         return err;
     }
     c2Buffer->setFormat(mFormat);
-    if (!convert(buffer, &c2Buffer) && !c2Buffer->copy(buffer)) {
+    if (!c2Buffer->copy(buffer)) {
         ALOGD("[%s] copy buffer failed", mName);
         return WOULD_BLOCK;
     }
@@ -1258,14 +1194,11 @@ status_t FlexOutputBuffers::registerBuffer(
         const std::shared_ptr<C2Buffer> &buffer,
         size_t *index,
         sp<MediaCodecBuffer> *clientBuffer) {
-    sp<Codec2Buffer> newBuffer;
-    if (!convert(buffer, &newBuffer)) {
-        newBuffer = wrap(buffer);
-        if (newBuffer == nullptr) {
-            return NO_MEMORY;
-        }
-        newBuffer->setFormat(mFormat);
+    sp<Codec2Buffer> newBuffer = wrap(buffer);
+    if (newBuffer == nullptr) {
+        return NO_MEMORY;
     }
+    newBuffer->setFormat(mFormat);
     *index = mImpl.assignSlot(newBuffer);
     handleImageData(newBuffer);
     *clientBuffer = newBuffer;

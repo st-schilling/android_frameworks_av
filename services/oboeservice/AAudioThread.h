@@ -18,7 +18,7 @@
 #define AAUDIO_THREAD_H
 
 #include <atomic>
-#include <thread>
+#include <pthread.h>
 
 #include <aaudio/AAudio.h>
 
@@ -37,6 +37,7 @@ public:
 
 /**
  * Abstraction for a host dependent thread.
+ * TODO Consider using Android "Thread" class or std::thread instead.
  */
 class AAudioThread
 {
@@ -72,7 +73,7 @@ private:
 
     Runnable    *mRunnable = nullptr;
     bool         mHasThread = false;
-    std::thread  mThread;
+    pthread_t    mThread = {};
 
     static std::atomic<uint32_t> mNextThreadIndex;
     char         mName[16]; // max length for a pthread_name

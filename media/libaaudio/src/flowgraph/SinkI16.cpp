@@ -17,16 +17,17 @@
 #include <algorithm>
 #include <unistd.h>
 
-#include "SinkI16.h"
-
-#if FLOWGRAPH_ANDROID_INTERNAL
+#ifdef __ANDROID__
 #include <audio_utils/primitives.h>
 #endif
 
-using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
+#include "AudioProcessorBase.h"
+#include "SinkI16.h"
+
+using namespace flowgraph;
 
 SinkI16::SinkI16(int32_t channelCount)
-        : FlowGraphSink(channelCount) {}
+        : AudioSink(channelCount) {}
 
 int32_t SinkI16::read(void *data, int32_t numFrames) {
     int16_t *shortData = (int16_t *) data;
@@ -35,13 +36,13 @@ int32_t SinkI16::read(void *data, int32_t numFrames) {
     int32_t framesLeft = numFrames;
     while (framesLeft > 0) {
         // Run the graph and pull data through the input port.
-        int32_t framesRead = pullData(framesLeft);
+        int32_t framesRead = pull(framesLeft);
         if (framesRead <= 0) {
             break;
         }
-        const float *signal = input.getBuffer();
+        const float *signal = input.getBlock();
         int32_t numSamples = framesRead * channelCount;
-#if FLOWGRAPH_ANDROID_INTERNAL
+#ifdef __ANDROID__
         memcpy_to_i16_from_float(shortData, signal, numSamples);
         shortData += numSamples;
         signal += numSamples;

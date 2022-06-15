@@ -18,7 +18,7 @@ package android.media;
 
 import android.media.AudioAttributesInternal;
 import android.media.AudioClient;
-import android.media.audio.common.AudioConfigBase;
+import android.media.AudioConfigBase;
 
 /**
  * CreateRecordRequest contains all input arguments sent by AudioRecord to AudioFlinger

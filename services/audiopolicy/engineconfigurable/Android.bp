@@ -41,9 +41,8 @@ cc_library_shared {
         "libaudiopolicyengineconfigurable_pfwwrapper",
 
     ],
-  shared_libs: [
+    shared_libs: [
         "libaudiofoundation",
-        "libbase",
         "liblog",
         "libcutils",
         "libutils",

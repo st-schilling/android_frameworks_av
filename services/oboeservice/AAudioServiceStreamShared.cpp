@@ -164,11 +164,11 @@ aaudio_result_t AAudioServiceStreamShared::open(const aaudio::AAudioStreamReques
         goto error;
     }
 
-    setChannelMask(configurationInput.getChannelMask());
-    if (getChannelMask() == AAUDIO_UNSPECIFIED) {
-        setChannelMask(endpoint->getChannelMask());
+    setSamplesPerFrame(configurationInput.getSamplesPerFrame());
+    if (getSamplesPerFrame() == AAUDIO_UNSPECIFIED) {
+        setSamplesPerFrame(endpoint->getSamplesPerFrame());
     } else if (getSamplesPerFrame() != endpoint->getSamplesPerFrame()) {
-        ALOGD("%s() mSamplesPerFrame = %#x, need %#x",
+        ALOGD("%s() mSamplesPerFrame = %d, need %d",
               __func__, getSamplesPerFrame(), endpoint->getSamplesPerFrame());
         result = AAUDIO_ERROR_OUT_OF_RANGE;
         goto error;
@@ -211,8 +211,8 @@ error:
 /**
  * Get an immutable description of the data queue created by this service.
  */
-aaudio_result_t AAudioServiceStreamShared::getAudioDataDescription_l(
-        AudioEndpointParcelable* parcelable)
+aaudio_result_t AAudioServiceStreamShared::getAudioDataDescription(
+        AudioEndpointParcelable &parcelable)
 {
     std::lock_guard<std::mutex> lock(audioDataQueueLock);
     if (mAudioDataQueue == nullptr) {
@@ -221,8 +221,8 @@ aaudio_result_t AAudioServiceStreamShared::getAudioDataDescription_l(
     }
     // Gather information on the data queue.
     mAudioDataQueue->fillParcelable(parcelable,
-                                    parcelable->mDownDataQueueParcelable);
-    parcelable->mDownDataQueueParcelable.setFramesPerBurst(getFramesPerBurst());
+                                    parcelable.mDownDataQueueParcelable);
+    parcelable.mDownDataQueueParcelable.setFramesPerBurst(getFramesPerBurst());
     return AAUDIO_OK;
 }
 
@@ -231,8 +231,8 @@ void AAudioServiceStreamShared::markTransferTime(Timestamp &timestamp) {
 }
 
 // Get timestamp that was written by mixer or distributor.
-aaudio_result_t AAudioServiceStreamShared::getFreeRunningPosition_l(int64_t *positionFrames,
-                                                                    int64_t *timeNanos) {
+aaudio_result_t AAudioServiceStreamShared::getFreeRunningPosition(int64_t *positionFrames,
+                                                                  int64_t *timeNanos) {
     // TODO Get presentation timestamp from the HAL
     if (mAtomicStreamTimestamp.isValid()) {
         Timestamp timestamp = mAtomicStreamTimestamp.read();
@@ -245,8 +245,8 @@ aaudio_result_t AAudioServiceStreamShared::getFreeRunningPosition_l(int64_t *pos
 }
 
 // Get timestamp from lower level service.
-aaudio_result_t AAudioServiceStreamShared::getHardwareTimestamp_l(int64_t *positionFrames,
-                                                                  int64_t *timeNanos) {
+aaudio_result_t AAudioServiceStreamShared::getHardwareTimestamp(int64_t *positionFrames,
+                                                                int64_t *timeNanos) {
 
     int64_t position = 0;
     sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();

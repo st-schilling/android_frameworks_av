@@ -19,7 +19,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <android/content/AttributionSourceState.h>
 #include <binder/MemoryBase.h>
 #include <binder/MemoryDealer.h>
 #include <binder/MemoryHeapBase.h>
@@ -109,15 +108,17 @@ int testTrack(FILE *inputFile, int outputFileFd)
         memset(&attributes, 0, sizeof(attributes));
         attributes.content_type = contentType;
         attributes.usage = usage;
+
         sp<AudioTrack> track = new AudioTrack();
-        const auto emptyCallback = sp<AudioTrack::IAudioTrackCallback>::make();
+
         track->set(AUDIO_STREAM_DEFAULT,
                    sampleRate,
                    format,
                    channelMask,
                    frameCount,
                    flags,
-                   (fast || offload) ? emptyCallback : nullptr,
+                   (fast || offload) ? callback : nullptr,
+                   nullptr,
                    notificationFrames,
                    sharedBuffer,
                    false,
@@ -125,7 +126,8 @@ int testTrack(FILE *inputFile, int outputFileFd)
                    ((fast && sharedBuffer == 0) || offload) ?
                            AudioTrack::TRANSFER_CALLBACK : AudioTrack::TRANSFER_DEFAULT,
                    offload ? &offloadInfo : nullptr,
-                   AttributionSourceState(),
+                   getuid(),
+                   getpid(),
                    &attributes,
                    false,
                    1.0f,

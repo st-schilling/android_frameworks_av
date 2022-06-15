@@ -20,6 +20,7 @@
 #include "GenericSource.h"
 #include "NuPlayerDrm.h"
 
+#include "AnotherPacketSource.h"
 #include <binder/IServiceManager.h>
 #include <cutils/properties.h>
 #include <datasource/PlayerServiceDataSourceFactory.h>
@@ -43,7 +44,6 @@
 #include <media/stagefright/MediaExtractorFactory.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
-#include <mpeg2ts/AnotherPacketSource.h>
 
 namespace android {
 

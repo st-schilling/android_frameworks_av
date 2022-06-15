@@ -22,8 +22,8 @@
 #include <utils/String16.h>
 
 #include <binder/IServiceManager.h>
-#include <android/gui/ISurfaceComposer.h>
-#include <android/gui/DisplayStatInfo.h>
+#include <gui/ISurfaceComposer.h>
+#include <ui/DisplayStatInfo.h>
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AUtils.h>
@@ -39,22 +39,21 @@ void VideoFrameScheduler::updateVsync() {
     mVsyncTime = 0;
     mVsyncPeriod = 0;
 
-    // TODO(b/220021255): wrap this into SurfaceComposerClient
     if (mComposer == NULL) {
-        String16 name("SurfaceFlingerAIDL");
+        String16 name("SurfaceFlinger");
         sp<IServiceManager> sm = defaultServiceManager();
-        mComposer = interface_cast<gui::ISurfaceComposer>(sm->checkService(name));
+        mComposer = interface_cast<ISurfaceComposer>(sm->checkService(name));
     }
     if (mComposer != NULL) {
-        gui::DisplayStatInfo stats;
-        binder::Status status = mComposer->getDisplayStats(nullptr/* display */, &stats);
-        if (status.isOk()) {
+        DisplayStatInfo stats;
+        status_t res = mComposer->getDisplayStats(NULL /* display */, &stats);
+        if (res == OK) {
             ALOGV("vsync time:%lld period:%lld",
                     (long long)stats.vsyncTime, (long long)stats.vsyncPeriod);
             mVsyncTime = stats.vsyncTime;
             mVsyncPeriod = stats.vsyncPeriod;
         } else {
-            ALOGW("getDisplayStats returned %d", status.transactionError());
+            ALOGW("getDisplayStats returned %d", res);
         }
     } else {
         ALOGW("could not get surface mComposer service");

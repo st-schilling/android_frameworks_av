@@ -30,8 +30,8 @@
 class MonotonicCounter {
 
 public:
-    MonotonicCounter() = default;
-    virtual ~MonotonicCounter() = default;
+    MonotonicCounter() {};
+    virtual ~MonotonicCounter() {};
 
     /**
      * @return current value of the counter
@@ -41,12 +41,7 @@ public:
     }
 
     /**
-     * Advance the current value to match the counter.
-     *
-     * Note that it will take several million years for the 64-bit
-     * counters to wrap around.
-     * So we do not use __builtin_sub_overflow.
-     * We want to know if overflow happens because of a bug.
+     * advance the current value to match the counter
      */
     void catchUpTo(int64_t counter) {
         if ((counter - mCounter64) > 0) {
@@ -79,8 +74,7 @@ public:
      * @return current value of the 64-bit counter
      */
     int64_t update32(int32_t counter32) {
-        int32_t delta;
-        __builtin_sub_overflow(counter32, mCounter32, &delta);
+        int32_t delta = counter32 - mCounter32;
         // protect against the mCounter64 going backwards
         if (delta > 0) {
             mCounter64 += delta;
@@ -113,5 +107,6 @@ private:
     int64_t mCounter64 = 0;
     int32_t mCounter32 = 0;
 };
+
 
 #endif //UTILITY_MONOTONIC_COUNTER_H

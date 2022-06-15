@@ -15,20 +15,19 @@
  */
 
 #include <algorithm>
-#include <unistd.h>
+#include <stdint.h>
 
-
-#include "FlowGraphNode.h"
-#include "SinkI24.h"
-
-#if FLOWGRAPH_ANDROID_INTERNAL
+#ifdef __ANDROID__
 #include <audio_utils/primitives.h>
 #endif
 
-using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
+#include "AudioProcessorBase.h"
+#include "SinkI24.h"
+
+using namespace flowgraph;
 
 SinkI24::SinkI24(int32_t channelCount)
-        : FlowGraphSink(channelCount) {}
+        : AudioSink(channelCount) {}
 
 int32_t SinkI24::read(void *data, int32_t numFrames) {
     uint8_t *byteData = (uint8_t *) data;
@@ -37,13 +36,13 @@ int32_t SinkI24::read(void *data, int32_t numFrames) {
     int32_t framesLeft = numFrames;
     while (framesLeft > 0) {
         // Run the graph and pull data through the input port.
-        int32_t framesRead = pullData(framesLeft);
+        int32_t framesRead = pull(framesLeft);
         if (framesRead <= 0) {
             break;
         }
-        const float *floatData = input.getBuffer();
+        const float *floatData = input.getBlock();
         int32_t numSamples = framesRead * channelCount;
-#if FLOWGRAPH_ANDROID_INTERNAL
+#ifdef __ANDROID__
         memcpy_to_p24_from_float(byteData, floatData, numSamples);
         static const int kBytesPerI24Packed = 3;
         byteData += numSamples * kBytesPerI24Packed;

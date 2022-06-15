@@ -18,91 +18,97 @@
 
 #include "TunerTimeFilter.h"
 
-#include <aidl/android/hardware/tv/tuner/Constant64Bit.h>
-#include <aidl/android/hardware/tv/tuner/Result.h>
+using ::android::hardware::tv::tuner::V1_0::Result;
+using ::android::hardware::tv::tuner::V1_1::Constant64Bit;
 
-using ::aidl::android::hardware::tv::tuner::Constant64Bit;
-using ::aidl::android::hardware::tv::tuner::Result;
-
-namespace aidl {
 namespace android {
-namespace media {
-namespace tv {
-namespace tuner {
 
-TunerTimeFilter::TunerTimeFilter(shared_ptr<ITimeFilter> timeFilter) {
+TunerTimeFilter::TunerTimeFilter(sp<ITimeFilter> timeFilter) {
     mTimeFilter = timeFilter;
 }
 
 TunerTimeFilter::~TunerTimeFilter() {
-    mTimeFilter = nullptr;
+    mTimeFilter = NULL;
 }
 
-::ndk::ScopedAStatus TunerTimeFilter::setTimeStamp(int64_t timeStamp) {
-    if (mTimeFilter == nullptr) {
+Status TunerTimeFilter::setTimeStamp(int64_t timeStamp) {
+    if (mTimeFilter == NULL) {
         ALOGE("ITimeFilter is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    return mTimeFilter->setTimeStamp(timeStamp);
+    Result status = mTimeFilter->setTimeStamp(timeStamp);
+    if (status != Result::SUCCESS) {
+        return Status::fromServiceSpecificError(static_cast<int32_t>(status));
+    }
+    return Status::ok();
 }
 
-::ndk::ScopedAStatus TunerTimeFilter::clearTimeStamp() {
-    if (mTimeFilter == nullptr) {
+Status TunerTimeFilter::clearTimeStamp() {
+    if (mTimeFilter == NULL) {
         ALOGE("ITimeFilter is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    return mTimeFilter->clearTimeStamp();
+    Result status = mTimeFilter->clearTimeStamp();
+    if (status != Result::SUCCESS) {
+        return Status::fromServiceSpecificError(static_cast<int32_t>(status));
+    }
+    return Status::ok();
 }
 
-::ndk::ScopedAStatus TunerTimeFilter::getSourceTime(int64_t* _aidl_return) {
-    if (mTimeFilter == nullptr) {
+Status TunerTimeFilter::getSourceTime(int64_t* _aidl_return) {
+    if (mTimeFilter == NULL) {
         *_aidl_return = (int64_t)Constant64Bit::INVALID_PRESENTATION_TIME_STAMP;
         ALOGE("ITimeFilter is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    auto status = mTimeFilter->getSourceTime(_aidl_return);
-    if (!status.isOk()) {
+    Result status;
+    mTimeFilter->getSourceTime(
+            [&](Result r, uint64_t t) {
+                status = r;
+                *_aidl_return = t;
+            });
+    if (status != Result::SUCCESS) {
         *_aidl_return = (int64_t)Constant64Bit::INVALID_PRESENTATION_TIME_STAMP;
+        return Status::fromServiceSpecificError(static_cast<int32_t>(status));
     }
-    return status;
+    return Status::ok();
 }
 
-::ndk::ScopedAStatus TunerTimeFilter::getTimeStamp(int64_t* _aidl_return) {
-    if (mTimeFilter == nullptr) {
+Status TunerTimeFilter::getTimeStamp(int64_t* _aidl_return) {
+    if (mTimeFilter == NULL) {
         *_aidl_return = (int64_t)Constant64Bit::INVALID_PRESENTATION_TIME_STAMP;
         ALOGE("ITimeFilter is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    auto status = mTimeFilter->getTimeStamp(_aidl_return);
-    if (!status.isOk()) {
+    Result status;
+    mTimeFilter->getTimeStamp(
+            [&](Result r, uint64_t t) {
+                status = r;
+                *_aidl_return = t;
+            });
+    if (status != Result::SUCCESS) {
         *_aidl_return = (int64_t)Constant64Bit::INVALID_PRESENTATION_TIME_STAMP;
+        return Status::fromServiceSpecificError(static_cast<int32_t>(status));
     }
-    return status;
+    return Status::ok();
 }
 
-::ndk::ScopedAStatus TunerTimeFilter::close() {
-    if (mTimeFilter == nullptr) {
+Status TunerTimeFilter::close() {
+    if (mTimeFilter == NULL) {
         ALOGE("ITimeFilter is not initialized");
-        return ::ndk::ScopedAStatus::fromServiceSpecificError(
-                static_cast<int32_t>(Result::UNAVAILABLE));
+        return Status::fromServiceSpecificError(static_cast<int32_t>(Result::UNAVAILABLE));
     }
 
-    auto status = mTimeFilter->close();
-    mTimeFilter = nullptr;
+    Result res = mTimeFilter->close();
+    mTimeFilter = NULL;
 
-    return status;
+    if (res != Result::SUCCESS) {
+        return Status::fromServiceSpecificError(static_cast<int32_t>(res));
+    }
+    return Status::ok();
 }
-
-}  // namespace tuner
-}  // namespace tv
-}  // namespace media
 }  // namespace android
-}  // namespace aidl

@@ -24,10 +24,6 @@ cc_library {
     vendor: true,
     srcs: ["EffectDownmix.cpp"],
 
-    export_include_dirs: [
-        ".",
-    ],
-
     shared_libs: [
         "libaudioutils",
         "libcutils",

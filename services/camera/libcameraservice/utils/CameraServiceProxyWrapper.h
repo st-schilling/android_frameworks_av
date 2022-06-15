@@ -48,9 +48,8 @@ private:
         void onOpen();
         void onClose(int32_t latencyMs);
         void onStreamConfigured(int operatingMode, bool internalReconfig, int32_t latencyMs);
-        void onActive(float maxPreviewFps);
+        void onActive();
         void onIdle(int64_t requestCount, int64_t resultErrorCount, bool deviceError,
-                const std::string& userTag, int32_t videoStabilizationMode,
                 const std::vector<hardware::CameraStreamStats>& streamStats);
     };
 
@@ -82,22 +81,19 @@ public:
             int32_t latencyMs);
 
     // Session state becomes active
-    static void logActive(const String8& id, float maxPreviewFps);
+    static void logActive(const String8& id);
 
     // Session state becomes idle
     static void logIdle(const String8& id,
             int64_t requestCount, int64_t resultErrorCount, bool deviceError,
-            const std::string& userTag, int32_t videoStabilizationMode,
             const std::vector<hardware::CameraStreamStats>& streamStats);
 
     // Ping camera service proxy for user update
     static void pingCameraServiceProxy();
 
-    // Return the current top activity rotate and crop override.
-    static int getRotateAndCropOverride(String16 packageName, int lensFacing, int userId);
-
-    // Detect if the camera is disabled by device policy.
-    static bool isCameraDisabled();
+    // Check whether the current top activity needs a rotate and crop override.
+    static bool isRotateAndCropOverrideNeeded(String16 packageName, int sensorOrientation,
+            int lensFacing);
 };
 
 } // android

@@ -62,8 +62,4 @@ interface IEffect {
      * TODO(ytai): Explain how this should be used exactly.
      */
     SharedFileRegion getCblk();
-
-    // When adding a new method, please review and update
-    // Effects.cpp AudioFlinger::EffectHandle::onTransact()
-    // Effects.cpp IEFFECT_BINDER_METHOD_MACRO_LIST
 }

@@ -30,8 +30,7 @@ struct ProcessInfo : public ProcessInfoInterface {
     ProcessInfo();
 
     virtual bool getPriority(int pid, int* priority);
-    virtual bool isPidTrusted(int pid);
-    virtual bool isPidUidTrusted(int pid, int uid);
+    virtual bool isValidPid(int pid);
     virtual bool overrideProcessInfo(int pid, int procState, int oomScore);
     virtual void removeProcessInfoOverride(int pid);
 

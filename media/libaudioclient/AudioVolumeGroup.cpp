@@ -26,9 +26,10 @@
 #include <media/AudioAttributes.h>
 #include <media/PolicyAidlConversion.h>
 
-namespace android {
+#define RETURN_STATUS_IF_ERROR(x) \
+    { auto _tmp = (x); if (_tmp != OK) return _tmp; }
 
-using media::audio::common::AudioStreamType;
+namespace android {
 
 status_t AudioVolumeGroup::readFromParcel(const Parcel *parcel)
 {
@@ -54,7 +55,7 @@ legacy2aidl_AudioVolumeGroup(const AudioVolumeGroup& legacy) {
                     legacy.getAudioAttributes(),
                     legacy2aidl_audio_attributes_t_AudioAttributesInternal));
     aidl.streams = VALUE_OR_RETURN(
-            convertContainer<std::vector<AudioStreamType>>(legacy.getStreamTypes(),
+            convertContainer<std::vector<media::AudioStreamType>>(legacy.getStreamTypes(),
             legacy2aidl_audio_stream_type_t_AudioStreamType));
     return aidl;
 }

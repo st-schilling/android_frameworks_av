@@ -16,15 +16,15 @@
 
 package android.media;
 
-import android.media.audio.common.AudioSource;
-import android.media.audio.common.AudioUsage;
+import android.media.AudioSourceType;
+import android.media.AudioUsage;
 
 /**
  * {@hide}
  */
 union AudioMixMatchCriterionValue {
     AudioUsage usage = AudioUsage.UNKNOWN;
-    AudioSource source;
+    AudioSourceType source;
     /** Interpreted as uid_t. */
     int uid;
     int userId;

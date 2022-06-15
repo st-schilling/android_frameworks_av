@@ -21,25 +21,18 @@
 #include <unistd.h>
 #include <sys/types.h>
 
-#include "FlowGraphNode.h"
+#include "AudioProcessorBase.h"
 
-namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph {
+namespace flowgraph {
 
-/**
- * AudioSink that lets you read data as 32-bit floats.
- */
-class SinkFloat : public FlowGraphSink {
+class SinkFloat : public AudioSink {
 public:
     explicit SinkFloat(int32_t channelCount);
-    ~SinkFloat() override = default;
 
     int32_t read(void *data, int32_t numFrames) override;
 
-    const char *getName() override {
-        return "SinkFloat";
-    }
 };
 
-} /* namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph */
+} /* namespace flowgraph */
 
 #endif //FLOWGRAPH_SINK_FLOAT_H

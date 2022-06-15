@@ -30,7 +30,6 @@ cc_library_static {
     ],
     shared_libs: [
         "libaudiofoundation",
-        "libbase",
         "libcutils",
         "libhidlbase",
         "liblog",

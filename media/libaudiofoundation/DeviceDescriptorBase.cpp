@@ -30,20 +30,16 @@ DeviceDescriptorBase::DeviceDescriptorBase(audio_devices_t type) :
 {
 }
 
-DeviceDescriptorBase::DeviceDescriptorBase(
-        audio_devices_t type, const std::string& address,
-        const FormatVector &encodedFormats) :
-        DeviceDescriptorBase(AudioDeviceTypeAddr(type, address), encodedFormats)
+DeviceDescriptorBase::DeviceDescriptorBase(audio_devices_t type, const std::string& address) :
+        DeviceDescriptorBase(AudioDeviceTypeAddr(type, address))
 {
 }
 
-DeviceDescriptorBase::DeviceDescriptorBase(
-        const AudioDeviceTypeAddr &deviceTypeAddr, const FormatVector &encodedFormats) :
+DeviceDescriptorBase::DeviceDescriptorBase(const AudioDeviceTypeAddr &deviceTypeAddr) :
         AudioPort("", AUDIO_PORT_TYPE_DEVICE,
                   audio_is_output_device(deviceTypeAddr.mType) ? AUDIO_PORT_ROLE_SINK :
                                          AUDIO_PORT_ROLE_SOURCE),
-        mDeviceTypeAddr(deviceTypeAddr),
-        mEncodedFormats(encodedFormats)
+        mDeviceTypeAddr(deviceTypeAddr)
 {
     if (mDeviceTypeAddr.address().empty() && audio_is_remote_submix_device(mDeviceTypeAddr.mType)) {
         mDeviceTypeAddr.setAddress("0");
@@ -110,23 +106,32 @@ status_t DeviceDescriptorBase::setEncapsulationMetadataTypes(uint32_t encapsulat
     return NO_ERROR;
 }
 
-void DeviceDescriptorBase::dump(std::string *dst, int spaces,
+void DeviceDescriptorBase::dump(std::string *dst, int spaces, int index,
                                 const char* extraInfo, bool verbose) const
 {
+    dst->append(base::StringPrintf("%*sDevice %d:\n", spaces, "", index + 1));
     if (mId != 0) {
-        dst->append(base::StringPrintf("Port ID: %d; ", mId));
+        dst->append(base::StringPrintf("%*s- id: %2d\n", spaces, "", mId));
     }
+
     if (extraInfo != nullptr) {
-        dst->append(base::StringPrintf("%s; ", extraInfo));
+        dst->append(extraInfo);
     }
-    dst->append(base::StringPrintf("{%s}\n",
-                    mDeviceTypeAddr.toString(true /*includeSensitiveInfo*/).c_str()));
+
+    dst->append(base::StringPrintf("%*s- type: %-48s\n",
+            spaces, "", ::android::toString(mDeviceTypeAddr.mType).c_str()));
 
     dst->append(base::StringPrintf(
-                    "%*sEncapsulation modes: %u, metadata types: %u\n", spaces, "",
-                    mEncapsulationModes, mEncapsulationMetadataTypes));
+            "%*s- supported encapsulation modes: %u\n", spaces, "", mEncapsulationModes));
+    dst->append(base::StringPrintf(
+            "%*s- supported encapsulation metadata types: %u\n",
+            spaces, "", mEncapsulationMetadataTypes));
 
-    AudioPort::dump(dst, spaces, nullptr, verbose);
+    if (mDeviceTypeAddr.address().size() != 0) {
+        dst->append(base::StringPrintf(
+                "%*s- address: %-32s\n", spaces, "", mDeviceTypeAddr.getAddress()));
+    }
+    AudioPort::dump(dst, spaces, verbose);
 }
 
 std::string DeviceDescriptorBase::toString(bool includeSensitiveInfo) const
@@ -143,83 +148,60 @@ void DeviceDescriptorBase::log() const
     AudioPort::log("  ");
 }
 
-template<typename T>
-bool checkEqual(const T& f1, const T& f2)
-{
-    std::set<typename T::value_type> s1(f1.begin(), f1.end());
-    std::set<typename T::value_type> s2(f2.begin(), f2.end());
-    return s1 == s2;
-}
-
 bool DeviceDescriptorBase::equals(const sp<DeviceDescriptorBase> &other) const
 {
     return other != nullptr &&
            static_cast<const AudioPort*>(this)->equals(other) &&
-           static_cast<const AudioPortConfig*>(this)->equals(other, useInputChannelMask()) &&
-           mDeviceTypeAddr.equals(other->mDeviceTypeAddr) &&
-           checkEqual(mEncodedFormats, other->mEncodedFormats);
+           static_cast<const AudioPortConfig*>(this)->equals(other) &&
+           mDeviceTypeAddr.equals(other->mDeviceTypeAddr);
 }
 
-bool DeviceDescriptorBase::supportsFormat(audio_format_t format)
-{
-    if (mEncodedFormats.empty()) {
-        return true;
-    }
 
-    for (const auto& devFormat : mEncodedFormats) {
-        if (devFormat == format) {
-            return true;
-        }
-    }
-    return false;
+status_t DeviceDescriptorBase::writeToParcel(Parcel *parcel) const
+{
+    media::AudioPort parcelable;
+    return writeToParcelable(&parcelable)
+        ?: parcelable.writeToParcel(parcel);
 }
 
 status_t DeviceDescriptorBase::writeToParcelable(media::AudioPort* parcelable) const {
     AudioPort::writeToParcelable(parcelable);
-    AudioPortConfig::writeToParcelable(&parcelable->sys.activeConfig.hal, useInputChannelMask());
-    parcelable->hal.id = VALUE_OR_RETURN_STATUS(legacy2aidl_audio_port_handle_t_int32_t(mId));
-    parcelable->sys.activeConfig.hal.portId = parcelable->hal.id;
+    AudioPortConfig::writeToParcelable(&parcelable->activeConfig);
+    parcelable->id = VALUE_OR_RETURN_STATUS(legacy2aidl_audio_port_handle_t_int32_t(mId));
 
-    media::audio::common::AudioPortDeviceExt deviceExt;
-    deviceExt.device = VALUE_OR_RETURN_STATUS(
-            legacy2aidl_AudioDeviceTypeAddress(mDeviceTypeAddr));
-    deviceExt.encodedFormats = VALUE_OR_RETURN_STATUS(
-            convertContainer<std::vector<media::audio::common::AudioFormatDescription>>(
-                    mEncodedFormats, legacy2aidl_audio_format_t_AudioFormatDescription));
-    UNION_SET(parcelable->hal.ext, device, deviceExt);
-    media::AudioPortDeviceExtSys deviceSys;
-    deviceSys.encapsulationModes = VALUE_OR_RETURN_STATUS(
+    media::AudioPortDeviceExt ext;
+    ext.device = VALUE_OR_RETURN_STATUS(legacy2aidl_AudioDeviceTypeAddress(mDeviceTypeAddr));
+    ext.encapsulationModes = VALUE_OR_RETURN_STATUS(
             legacy2aidl_AudioEncapsulationMode_mask(mEncapsulationModes));
-    deviceSys.encapsulationMetadataTypes = VALUE_OR_RETURN_STATUS(
+    ext.encapsulationMetadataTypes = VALUE_OR_RETURN_STATUS(
             legacy2aidl_AudioEncapsulationMetadataType_mask(mEncapsulationMetadataTypes));
-    UNION_SET(parcelable->sys.ext, device, deviceSys);
+    UNION_SET(parcelable->ext, device, std::move(ext));
     return OK;
 }
 
+status_t DeviceDescriptorBase::readFromParcel(const Parcel *parcel) {
+    media::AudioPort parcelable;
+    return parcelable.readFromParcel(parcel)
+        ?: readFromParcelable(parcelable);
+}
+
 status_t DeviceDescriptorBase::readFromParcelable(const media::AudioPort& parcelable) {
-    if (parcelable.sys.type != media::AudioPortType::DEVICE) {
+    if (parcelable.type != media::AudioPortType::DEVICE) {
         return BAD_VALUE;
     }
     status_t status = AudioPort::readFromParcelable(parcelable)
-            ?: AudioPortConfig::readFromParcelable(
-                    parcelable.sys.activeConfig.hal, useInputChannelMask());
+                      ?: AudioPortConfig::readFromParcelable(parcelable.activeConfig);
     if (status != OK) {
         return status;
     }
 
-    media::audio::common::AudioPortDeviceExt deviceExt = VALUE_OR_RETURN_STATUS(
-            UNION_GET(parcelable.hal.ext, device));
+    media::AudioPortDeviceExt ext = VALUE_OR_RETURN_STATUS(UNION_GET(parcelable.ext, device));
     mDeviceTypeAddr = VALUE_OR_RETURN_STATUS(
-            aidl2legacy_AudioDeviceTypeAddress(deviceExt.device));
-    mEncodedFormats = VALUE_OR_RETURN_STATUS(
-            convertContainer<FormatVector>(deviceExt.encodedFormats,
-                    aidl2legacy_AudioFormatDescription_audio_format_t));
-    media::AudioPortDeviceExtSys deviceSys = VALUE_OR_RETURN_STATUS(
-            UNION_GET(parcelable.sys.ext, device));
+            aidl2legacy_AudioDeviceTypeAddress(ext.device));
     mEncapsulationModes = VALUE_OR_RETURN_STATUS(
-            aidl2legacy_AudioEncapsulationMode_mask(deviceSys.encapsulationModes));
+            aidl2legacy_AudioEncapsulationMode_mask(ext.encapsulationModes));
     mEncapsulationMetadataTypes = VALUE_OR_RETURN_STATUS(
-            aidl2legacy_AudioEncapsulationMetadataType_mask(deviceSys.encapsulationMetadataTypes));
+            aidl2legacy_AudioEncapsulationMetadataType_mask(ext.encapsulationMetadataTypes));
     return OK;
 }
 

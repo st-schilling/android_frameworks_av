@@ -14,8 +14,8 @@ cc_library_static {
         "libcodec2-hidl-client-defaults",
     ],
 
-    header_libs: [
-        "libcodec2_client_headers",
+    include_dirs: [
+        "frameworks/av/media/codec2/hidl/client/include",
     ],
 
     srcs: [

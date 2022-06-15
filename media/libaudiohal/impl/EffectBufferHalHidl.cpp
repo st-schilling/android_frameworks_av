@@ -23,6 +23,7 @@
 #include <hidlmemory/mapping.h>
 #include <utils/Log.h>
 
+#include "ConversionHelperHidl.h"
 #include "EffectBufferHalHidl.h"
 
 using ::android::hardware::Return;
@@ -30,6 +31,7 @@ using ::android::hidl::allocator::V1_0::IAllocator;
 
 namespace android {
 namespace effect {
+namespace CPP_VERSION {
 
 // static
 uint64_t EffectBufferHalHidl::makeUniqueId() {
@@ -142,4 +144,5 @@ void EffectBufferHalHidl::commit(size_t size) {
 }
 
 } // namespace effect
+} // namespace CPP_VERSION
 } // namespace android

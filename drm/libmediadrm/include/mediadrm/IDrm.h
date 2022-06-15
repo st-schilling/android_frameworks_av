@@ -165,8 +165,6 @@ struct IDrm : public virtual RefBase {
 
     virtual status_t getLogMessages(Vector<drm::V1_4::LogMessage> &logs) const = 0;
 
-    virtual status_t getSupportedSchemes(std::vector<uint8_t> &schemes) const = 0;
-
 protected:
     IDrm() {}
 

@@ -50,10 +50,6 @@ struct OutputBufferQueue {
                    int maxDequeueBufferCount,
                    std::shared_ptr<V1_2::SurfaceSyncObj> *syncObj);
 
-    // Stop using the current output surface. Pending buffer opeations will not
-    // perform anymore.
-    void stop();
-
     // Render a graphic block to current surface.
     status_t outputBuffer(
             const C2ConstGraphicBlock& block,
@@ -85,7 +81,6 @@ private:
     sp<GraphicBuffer> mBuffers[BufferQueueDefs::NUM_BUFFER_SLOTS]; // find a better way
     std::weak_ptr<_C2BlockPoolData> mPoolDatas[BufferQueueDefs::NUM_BUFFER_SLOTS];
     std::shared_ptr<C2SurfaceSyncMemory> mSyncMem;
-    bool mStopped;
 
     bool registerBuffer(const C2ConstGraphicBlock& block);
 };

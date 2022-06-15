@@ -17,71 +17,81 @@
 #ifndef ANDROID_MEDIA_TUNERDVR_H
 #define ANDROID_MEDIA_TUNERDVR_H
 
-#include <aidl/android/hardware/tv/tuner/BnDvrCallback.h>
-#include <aidl/android/hardware/tv/tuner/DvrSettings.h>
-#include <aidl/android/hardware/tv/tuner/DvrType.h>
-#include <aidl/android/hardware/tv/tuner/IDvr.h>
-#include <aidl/android/hardware/tv/tuner/PlaybackStatus.h>
-#include <aidl/android/hardware/tv/tuner/RecordStatus.h>
 #include <aidl/android/media/tv/tuner/BnTunerDvr.h>
 #include <aidl/android/media/tv/tuner/ITunerDvrCallback.h>
+#include <android/hardware/tv/tuner/1.0/ITuner.h>
+#include <fmq/MessageQueue.h>
 
-#include "TunerFilter.h"
+#include <TunerFilter.h>
 
+using Status = ::ndk::ScopedAStatus;
+using ::aidl::android::hardware::common::fmq::GrantorDescriptor;
 using ::aidl::android::hardware::common::fmq::MQDescriptor;
 using ::aidl::android::hardware::common::fmq::SynchronizedReadWrite;
-using ::aidl::android::hardware::tv::tuner::BnDvrCallback;
-using ::aidl::android::hardware::tv::tuner::DvrSettings;
-using ::aidl::android::hardware::tv::tuner::DvrType;
-using ::aidl::android::hardware::tv::tuner::IDvr;
-using ::aidl::android::hardware::tv::tuner::PlaybackStatus;
-using ::aidl::android::hardware::tv::tuner::RecordStatus;
+using ::aidl::android::media::tv::tuner::BnTunerDvr;
+using ::aidl::android::media::tv::tuner::ITunerDvrCallback;
+using ::aidl::android::media::tv::tuner::ITunerFilter;
+using ::aidl::android::media::tv::tuner::TunerDvrSettings;
+
+using ::android::hardware::MQDescriptorSync;
+using ::android::hardware::MessageQueue;
+using ::android::hardware::Return;
+using ::android::hardware::Void;
+
+using ::android::hardware::tv::tuner::V1_0::DvrSettings;
+using ::android::hardware::tv::tuner::V1_0::DvrType;
+using ::android::hardware::tv::tuner::V1_0::IDvr;
+using ::android::hardware::tv::tuner::V1_0::IDvrCallback;
+using ::android::hardware::tv::tuner::V1_0::PlaybackStatus;
+using ::android::hardware::tv::tuner::V1_0::RecordStatus;
 
 using namespace std;
 
-namespace aidl {
 namespace android {
-namespace media {
-namespace tv {
-namespace tuner {
 
+using MQDesc = MQDescriptorSync<uint8_t>;
 using AidlMQDesc = MQDescriptor<int8_t, SynchronizedReadWrite>;
 
 class TunerDvr : public BnTunerDvr {
 
 public:
-    TunerDvr(shared_ptr<IDvr> dvr, DvrType type);
+    TunerDvr(sp<IDvr> dvr, int type);
     ~TunerDvr();
 
-    ::ndk::ScopedAStatus getQueueDesc(AidlMQDesc* _aidl_return) override;
-    ::ndk::ScopedAStatus configure(const DvrSettings& in_settings) override;
-    ::ndk::ScopedAStatus attachFilter(const shared_ptr<ITunerFilter>& in_filter) override;
-    ::ndk::ScopedAStatus detachFilter(const shared_ptr<ITunerFilter>& in_filter) override;
-    ::ndk::ScopedAStatus start() override;
-    ::ndk::ScopedAStatus stop() override;
-    ::ndk::ScopedAStatus flush() override;
-    ::ndk::ScopedAStatus close() override;
+    Status getQueueDesc(AidlMQDesc* _aidl_return) override;
 
-    struct DvrCallback : public BnDvrCallback {
+    Status configure(const TunerDvrSettings& settings) override;
+
+    Status attachFilter(const shared_ptr<ITunerFilter>& filter) override;
+
+    Status detachFilter(const shared_ptr<ITunerFilter>& filter) override;
+
+    Status start() override;
+
+    Status stop() override;
+
+    Status flush() override;
+
+    Status close() override;
+
+    struct DvrCallback : public IDvrCallback {
         DvrCallback(const shared_ptr<ITunerDvrCallback> tunerDvrCallback)
-              : mTunerDvrCallback(tunerDvrCallback){};
+                : mTunerDvrCallback(tunerDvrCallback) {};
 
-        ::ndk::ScopedAStatus onRecordStatus(const RecordStatus status) override;
-        ::ndk::ScopedAStatus onPlaybackStatus(const PlaybackStatus status) override;
+        virtual Return<void> onRecordStatus(const RecordStatus status);
+        virtual Return<void> onPlaybackStatus(const PlaybackStatus status);
 
-    private:
-        shared_ptr<ITunerDvrCallback> mTunerDvrCallback;
+        private:
+            shared_ptr<ITunerDvrCallback> mTunerDvrCallback;
     };
 
 private:
-    shared_ptr<IDvr> mDvr;
+    DvrSettings getHidlDvrSettingsFromAidl(TunerDvrSettings settings);
+
+    sp<IDvr> mDvr;
     DvrType mType;
 };
 
-}  // namespace tuner
-}  // namespace tv
-}  // namespace media
-}  // namespace android
-}  // namespace aidl
+} // namespace android
 
 #endif // ANDROID_MEDIA_TUNERDVR_H

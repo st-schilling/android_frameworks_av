@@ -31,8 +31,8 @@ cc_test {
         "WebmFrameThreadUnitTest.cpp",
     ],
 
-    header_libs: [
-        "libstagefright_headers",
+    include_dirs: [
+        "frameworks/av/media/libstagefright",
     ],
 
     static_libs: [

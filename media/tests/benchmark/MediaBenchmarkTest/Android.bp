@@ -69,6 +69,7 @@ android_library {
 java_defaults {
     name: "MediaBenchmark-defaults",
 
+    sdk_version: "system_current",
     min_sdk_version: "28",
-    target_sdk_version: "30",
+    target_sdk_version: "29",
 }

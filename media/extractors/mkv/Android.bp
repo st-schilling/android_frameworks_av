@@ -21,8 +21,10 @@ cc_library {
 
     srcs: ["MatroskaExtractor.cpp"],
 
-    export_include_dirs: [
-        "include",
+    include_dirs: [
+        "external/flac/include",
+        "external/libvpx/libwebm",
+        "frameworks/av/media/libstagefright/flac/dec",
     ],
 
     shared_libs: [

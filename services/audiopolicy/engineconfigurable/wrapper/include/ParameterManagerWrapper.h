@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <media/AudioContainers.h>
 #include <system/audio.h>
 #include <system/audio_policy.h>
 #include <utils/Errors.h>
@@ -36,8 +35,7 @@ class ParameterMgrPlatformConnectorLogger;
 namespace android {
 namespace audio_policy {
 
-using ValuePair = std::tuple<uint64_t, uint32_t, std::string>;
-using DeviceToCriterionTypeAdapter = std::map<audio_devices_t, uint64_t>;
+using ValuePair = std::pair<uint32_t, std::string>;
 using ValuePairs = std::vector<ValuePair>;
 
 class ParameterManagerWrapper
@@ -107,7 +105,7 @@ public:
      *
      * @return NO_ERROR if devices criterion updated correctly, error code otherwise.
      */
-    status_t setAvailableInputDevices(const DeviceTypeSet &inputDeviceTypes);
+    status_t setAvailableInputDevices(audio_devices_t inputDevices);
 
     /**
      * Set the available output devices i.e. set the associated policy parameter framework criterion
@@ -116,7 +114,7 @@ public:
      *
      * @return NO_ERROR if devices criterion updated correctly, error code otherwise.
      */
-    status_t setAvailableOutputDevices(const DeviceTypeSet &outputDeviceTypes);
+    status_t setAvailableOutputDevices(audio_devices_t outputDevices);
 
     /**
      * @brief setDeviceConnectionState propagates a state event on a given device(s)
@@ -126,7 +124,7 @@ public:
      * @return NO_ERROR if new state corretly propagated to Engine Parameter-Framework, error
      * code otherwise.
      */
-    status_t setDeviceConnectionState(audio_devices_t type, const std::string &address,
+    status_t setDeviceConnectionState(audio_devices_t type, const std::string address,
                                       audio_policy_dev_state_t state);
 
     /**
@@ -139,13 +137,6 @@ public:
      */
     status_t addCriterion(const std::string &name, bool isInclusive, ValuePairs pairs,
                           const std::string &defaultValue);
-
-    uint64_t convertDeviceTypeToCriterionValue(audio_devices_t type) const;
-
-    uint64_t convertDeviceTypesToCriterionValue(const DeviceTypeSet &types) const;
-
-    DeviceTypeSet convertDeviceCriterionValueToDeviceTypes(
-            uint64_t criterionValue, bool isOut) const;
 
 private:
     /**
@@ -219,9 +210,6 @@ private:
      */
     template <typename T>
     struct parameterManagerElementSupported;
-
-    DeviceToCriterionTypeAdapter mOutputDeviceToCriterionTypeMap;
-    DeviceToCriterionTypeAdapter mInputDeviceToCriterionTypeMap;
 
     static const char *const mPolicyPfwDefaultConfFileName; /**< Default Policy PFW top file name.*/
     static const char *const mPolicyPfwVendorConfFileName; /**< Vendor Policy PFW top file name.*/

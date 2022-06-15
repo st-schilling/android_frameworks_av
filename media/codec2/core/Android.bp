@@ -11,10 +11,6 @@ cc_library_headers {
     name: "libcodec2_headers",
     vendor_available: true,
     min_sdk_version: "29",
-    apex_available: [
-        "//apex_available:platform",
-        "com.android.media.swcodec",
-    ],
     export_include_dirs: ["include"],
 }
 
@@ -22,10 +18,6 @@ cc_library {
     name: "libcodec2",
     vendor_available: true,
     min_sdk_version: "29",
-    apex_available: [
-        "//apex_available:platform",
-        "com.android.media.swcodec",
-    ],
     vndk: {
         enabled: true,
     },

@@ -23,36 +23,26 @@
 #include <sys/mman.h>
 #include <aaudio/AAudio.h>
 
-#include <media/AidlConversion.h>
-
 #include "binding/AAudioStreamConfiguration.h"
 
 using namespace aaudio;
 
-using android::media::audio::common::AudioFormatDescription;
+using android::media::audio::common::AudioFormat;
 
 AAudioStreamConfiguration::AAudioStreamConfiguration(const StreamParameters& parcelable) {
-    setChannelMask(parcelable.channelMask);
+    setSamplesPerFrame(parcelable.samplesPerFrame);
     setSampleRate(parcelable.sampleRate);
     setDeviceId(parcelable.deviceId);
     static_assert(sizeof(aaudio_sharing_mode_t) == sizeof(parcelable.sharingMode));
     setSharingMode(parcelable.sharingMode);
-    auto convFormat = android::aidl2legacy_AudioFormatDescription_audio_format_t(
-            parcelable.audioFormat);
-    setFormat(convFormat.ok() ? convFormat.value() : AUDIO_FORMAT_INVALID);
+    static_assert(sizeof(audio_format_t) == sizeof(parcelable.audioFormat));
+    setFormat(static_cast<audio_format_t>(parcelable.audioFormat));
     static_assert(sizeof(aaudio_direction_t) == sizeof(parcelable.direction));
     setDirection(parcelable.direction);
     static_assert(sizeof(audio_usage_t) == sizeof(parcelable.usage));
     setUsage(parcelable.usage);
     static_assert(sizeof(aaudio_content_type_t) == sizeof(parcelable.contentType));
     setContentType(parcelable.contentType);
-
-    static_assert(sizeof(aaudio_spatialization_behavior_t) ==
-            sizeof(parcelable.spatializationBehavior));
-    setSpatializationBehavior(parcelable.spatializationBehavior);
-    setIsContentSpatialized(parcelable.isContentSpatialized);
-
-
     static_assert(sizeof(aaudio_input_preset_t) == sizeof(parcelable.inputPreset));
     setInputPreset(parcelable.inputPreset);
     setBufferCapacity(parcelable.bufferCapacity);
@@ -73,19 +63,13 @@ AAudioStreamConfiguration::operator=(const StreamParameters& parcelable) {
 
 StreamParameters AAudioStreamConfiguration::parcelable() const {
     StreamParameters result;
-    result.channelMask = getChannelMask();
+    result.samplesPerFrame = getSamplesPerFrame();
     result.sampleRate = getSampleRate();
     result.deviceId = getDeviceId();
     static_assert(sizeof(aaudio_sharing_mode_t) == sizeof(result.sharingMode));
     result.sharingMode = getSharingMode();
-    auto convAudioFormat = android::legacy2aidl_audio_format_t_AudioFormatDescription(getFormat());
-    if (convAudioFormat.ok()) {
-        result.audioFormat = convAudioFormat.value();
-    } else {
-        result.audioFormat = AudioFormatDescription{};
-        result.audioFormat.type =
-                android::media::audio::common::AudioFormatType::SYS_RESERVED_INVALID;
-    }
+    static_assert(sizeof(audio_format_t) == sizeof(result.audioFormat));
+    result.audioFormat = static_cast<AudioFormat>(getFormat());
     static_assert(sizeof(aaudio_direction_t) == sizeof(result.direction));
     result.direction = getDirection();
     static_assert(sizeof(audio_usage_t) == sizeof(result.usage));

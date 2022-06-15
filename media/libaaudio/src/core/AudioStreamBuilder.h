@@ -31,9 +31,9 @@ namespace aaudio {
  */
 class AudioStreamBuilder : public AAudioStreamParameters {
 public:
-    AudioStreamBuilder() = default;
+    AudioStreamBuilder();
 
-    ~AudioStreamBuilder() = default;
+    ~AudioStreamBuilder();
 
     bool isSharingModeMatchRequired() const {
         return mSharingModeMatchRequired;

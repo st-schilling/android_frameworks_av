@@ -51,6 +51,10 @@ cc_test {
         "libstagefright_foundation",
     ],
 
+    include_dirs: [
+        "frameworks/av/media/libstagefright",
+    ],
+
     // TODO: (b/150181583)
     compile_multilib: "first",
 

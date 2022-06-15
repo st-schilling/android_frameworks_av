@@ -19,8 +19,6 @@
 #include <utils/Log.h>
 #include <utils/String8.h>
 
-#include <inttypes.h>
-
 #include "ALooperRoster.h"
 
 #include "ADebug.h"
@@ -144,7 +142,7 @@ void ALooperRoster::dump(int fd, const Vector<String16>& args) {
             sp<AHandler> handler = info.mHandler.promote();
             if (handler != NULL) {
                 handler->mVerboseStats = verboseStats;
-                s.appendFormat(": %" PRIu64 " messages processed", handler->mMessageCounter);
+                s.appendFormat(": %u messages processed", handler->mMessageCounter);
                 if (verboseStats) {
                     for (size_t j = 0; j < handler->mMessages.size(); j++) {
                         char fourcc[15];

@@ -16,9 +16,6 @@
 
 package android.media.tv.tuner;
 
-import android.hardware.tv.tuner.PlaybackStatus;
-import android.hardware.tv.tuner.RecordStatus;
-
 /**
  * TunerDvrCallback interface handles tuner dvr related callbacks.
  *
@@ -28,10 +25,10 @@ interface ITunerDvrCallback {
     /**
      * Notify the client a new status of the demux's record.
      */
-    void onRecordStatus(in RecordStatus status);
+    void onRecordStatus(in int status);
 
     /**
      * Notify the client a new status of the demux's playback.
      */
-    void onPlaybackStatus(in PlaybackStatus status);
+    void onPlaybackStatus(in int status);
 }

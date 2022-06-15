@@ -16,10 +16,6 @@
 
 // Test AAudio attributes such as Usage, ContentType and InputPreset.
 
-// TODO Many of these tests are duplicates of CTS tests in
-// "test_aaudio_attributes.cpp". That other file is more current.
-// So these tests could be deleted.
-
 #include <stdio.h>
 #include <unistd.h>
 
@@ -95,7 +91,7 @@ static void checkAttributes(aaudio_performance_mode_t perfMode,
     aaudio_allowed_capture_policy_t expectedCapturePolicy =
             (capturePolicy == DONT_SET || capturePolicy == AAUDIO_UNSPECIFIED)
             ? AAUDIO_ALLOW_CAPTURE_BY_ALL // default
-            : capturePolicy;
+            : preset;
     EXPECT_EQ(expectedCapturePolicy, AAudioStream_getAllowedCapturePolicy(aaudioStream));
 
     bool expectedPrivacyMode =
@@ -136,7 +132,10 @@ static const aaudio_usage_t sUsages[] = {
     AAUDIO_USAGE_ASSISTANCE_SONIFICATION,
     AAUDIO_USAGE_GAME,
     AAUDIO_USAGE_ASSISTANT,
-    // Note that the AAUDIO_SYSTEM_USAGE_* values requires special permission.
+    AAUDIO_SYSTEM_USAGE_EMERGENCY,
+    AAUDIO_SYSTEM_USAGE_SAFETY,
+    AAUDIO_SYSTEM_USAGE_VEHICLE_STATUS,
+    AAUDIO_SYSTEM_USAGE_ANNOUNCEMENT
 };
 
 static const aaudio_content_type_t sContentypes[] = {

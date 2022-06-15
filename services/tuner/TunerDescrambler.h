@@ -17,43 +17,38 @@
 #ifndef ANDROID_MEDIA_TUNERDESCRAMBLER_H
 #define ANDROID_MEDIA_TUNERDESCRAMBLER_H
 
-#include <aidl/android/hardware/tv/tuner/IDescrambler.h>
 #include <aidl/android/media/tv/tuner/BnTunerDescrambler.h>
+#include <android/hardware/tv/tuner/1.0/ITuner.h>
 
-using ::aidl::android::hardware::tv::tuner::DemuxPid;
-using ::aidl::android::hardware::tv::tuner::IDescrambler;
+using Status = ::ndk::ScopedAStatus;
+using ::aidl::android::media::tv::tuner::BnTunerDescrambler;
+using ::aidl::android::media::tv::tuner::ITunerDemux;
+using ::aidl::android::media::tv::tuner::ITunerFilter;
+using ::aidl::android::media::tv::tuner::TunerDemuxPid;
+using ::android::hardware::tv::tuner::V1_0::DemuxPid;
+using ::android::hardware::tv::tuner::V1_0::IDescrambler;
 
-using namespace std;
-
-namespace aidl {
 namespace android {
-namespace media {
-namespace tv {
-namespace tuner {
 
 class TunerDescrambler : public BnTunerDescrambler {
 
 public:
-    TunerDescrambler(shared_ptr<IDescrambler> descrambler);
+    TunerDescrambler(sp<IDescrambler> descrambler);
     virtual ~TunerDescrambler();
-
-    ::ndk::ScopedAStatus setDemuxSource(const shared_ptr<ITunerDemux>& in_tunerDemux) override;
-    ::ndk::ScopedAStatus setKeyToken(const vector<uint8_t>& in_keyToken) override;
-    ::ndk::ScopedAStatus addPid(const DemuxPid& in_pid,
-                                const shared_ptr<ITunerFilter>& in_optionalSourceFilter) override;
-    ::ndk::ScopedAStatus removePid(
-            const DemuxPid& in_pid,
-            const shared_ptr<ITunerFilter>& in_optionalSourceFilter) override;
-    ::ndk::ScopedAStatus close() override;
+    Status setDemuxSource(const shared_ptr<ITunerDemux>& demux) override;
+    Status setKeyToken(const vector<uint8_t>& keyToken) override;
+    Status addPid(const TunerDemuxPid& pid,
+            const shared_ptr<ITunerFilter>& optionalSourceFilter) override;
+    Status removePid(const TunerDemuxPid& pid,
+            const shared_ptr<ITunerFilter>& optionalSourceFilter) override;
+    Status close() override;
 
 private:
-    shared_ptr<IDescrambler> mDescrambler;
+    DemuxPid getHidlDemuxPid(const TunerDemuxPid& pid);
+
+    sp<IDescrambler> mDescrambler;
 };
 
-}  // namespace tuner
-}  // namespace tv
-}  // namespace media
-}  // namespace android
-}  // namespace aidl
+} // namespace android
 
 #endif // ANDROID_MEDIA_TUNERDESCRAMBLER_H

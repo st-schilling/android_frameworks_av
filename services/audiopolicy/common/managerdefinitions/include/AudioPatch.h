@@ -41,7 +41,7 @@ public:
 
     void setUid(uid_t uid) { mUid = uid; }
 
-    void dump(String8 *dst, int spaces) const;
+    void dump(String8 *dst, int spaces, int index) const;
 
     struct audio_patch mPatch;
 

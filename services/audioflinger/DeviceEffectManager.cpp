@@ -77,8 +77,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::DeviceEffectManager::createEffect_l
         const std::map<audio_patch_handle_t, PatchPanel::Patch>& patches,
         int *enabled,
         status_t *status,
-        bool probe,
-        bool notifyFramesProcessed) {
+        bool probe) {
     sp<DeviceEffectProxy> effect;
     sp<EffectHandle> handle;
     status_t lStatus;
@@ -96,12 +95,10 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::DeviceEffectManager::createEffect_l
             effect = iter->second;
         } else {
             effect = new DeviceEffectProxy(device, mMyCallback,
-                    descriptor, mAudioFlinger.nextUniqueId(AUDIO_UNIQUE_ID_USE_EFFECT),
-                    notifyFramesProcessed);
+                    descriptor, mAudioFlinger.nextUniqueId(AUDIO_UNIQUE_ID_USE_EFFECT));
         }
         // create effect handle and connect it to effect module
-        handle = new EffectHandle(effect, client, effectClient, 0 /*priority*/,
-                                  notifyFramesProcessed);
+        handle = new EffectHandle(effect, client, effectClient, 0 /*priority*/);
         lStatus = handle->initCheck();
         if (lStatus == NO_ERROR) {
             lStatus = effect->addHandle(handle.get());

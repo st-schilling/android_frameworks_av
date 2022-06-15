@@ -15,8 +15,6 @@
  */
 
 #include <inttypes.h>
-#include <mutex>
-#include <set>
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "NdkMediaCodec"
@@ -31,7 +29,6 @@
 #include <gui/Surface.h>
 
 #include <media/stagefright/foundation/ALooper.h>
-#include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/AMessage.h>
 
 #include <media/stagefright/PersistentSurface.h>
@@ -44,7 +41,6 @@ using namespace android;
 
 
 static media_status_t translate_error(status_t err) {
-
     if (err == OK) {
         return AMEDIA_OK;
     } else if (err == -EAGAIN) {
@@ -54,18 +50,7 @@ static media_status_t translate_error(status_t err) {
     } else if (err == DEAD_OBJECT) {
         return AMEDIACODEC_ERROR_RECLAIMED;
     }
-
-    {
-        // minimize log flooding. Some CTS behavior made this noisy and apps could do the same.
-        static std::set<status_t> untranslated;
-        static std::mutex mutex;
-        std::lock_guard lg(mutex);
-
-        if (untranslated.find(err) == untranslated.end()) {
-            ALOGE("untranslated sf error code: %d", err);
-            untranslated.insert(err);
-        }
-    }
+    ALOGE("sf error code: %d", err);
     return AMEDIA_ERROR_UNKNOWN;
 }
 
@@ -74,7 +59,6 @@ enum {
     kWhatAsyncNotify,
     kWhatRequestActivityNotifications,
     kWhatStopActivityNotifications,
-    kWhatFrameRenderedNotify,
 };
 
 struct AMediaCodecPersistentSurface : public Surface {
@@ -114,11 +98,6 @@ struct AMediaCodec {
     mutable Mutex mAsyncCallbackLock;
     AMediaCodecOnAsyncNotifyCallback mAsyncCallback;
     void *mAsyncCallbackUserData;
-
-    sp<AMessage> mFrameRenderedNotify;
-    mutable Mutex mFrameRenderedCallbackLock;
-    AMediaCodecOnFrameRendered mFrameRenderedCallback;
-    void *mFrameRenderedCallbackUserData;
 };
 
 CodecHandler::CodecHandler(AMediaCodec *codec) {
@@ -179,7 +158,8 @@ void CodecHandler::onMessageReceived(const sp<AMessage> &msg) {
                      }
 
                      Mutex::Autolock _l(mCodec->mAsyncCallbackLock);
-                     if (mCodec->mAsyncCallback.onAsyncInputAvailable != NULL) {
+                     if (mCodec->mAsyncCallbackUserData != NULL
+                         || mCodec->mAsyncCallback.onAsyncInputAvailable != NULL) {
                          mCodec->mAsyncCallback.onAsyncInputAvailable(
                                  mCodec,
                                  mCodec->mAsyncCallbackUserData,
@@ -225,7 +205,8 @@ void CodecHandler::onMessageReceived(const sp<AMessage> &msg) {
                          (uint32_t)flags};
 
                      Mutex::Autolock _l(mCodec->mAsyncCallbackLock);
-                     if (mCodec->mAsyncCallback.onAsyncOutputAvailable != NULL) {
+                     if (mCodec->mAsyncCallbackUserData != NULL
+                         || mCodec->mAsyncCallback.onAsyncOutputAvailable != NULL) {
                          mCodec->mAsyncCallback.onAsyncOutputAvailable(
                                  mCodec,
                                  mCodec->mAsyncCallbackUserData,
@@ -253,7 +234,8 @@ void CodecHandler::onMessageReceived(const sp<AMessage> &msg) {
                      AMediaFormat *aMediaFormat = AMediaFormat_fromMsg(&copy);
 
                      Mutex::Autolock _l(mCodec->mAsyncCallbackLock);
-                     if (mCodec->mAsyncCallback.onAsyncFormatChanged != NULL) {
+                     if (mCodec->mAsyncCallbackUserData != NULL
+                         || mCodec->mAsyncCallback.onAsyncFormatChanged != NULL) {
                          mCodec->mAsyncCallback.onAsyncFormatChanged(
                                  mCodec,
                                  mCodec->mAsyncCallbackUserData,
@@ -277,11 +259,12 @@ void CodecHandler::onMessageReceived(const sp<AMessage> &msg) {
                          break;
                      }
                      msg->findString("detail", &detail);
-                     ALOGE("Codec reported error(0x%x/%s), actionCode(%d), detail(%s)",
-                           err, StrMediaError(err).c_str(), actionCode, detail.c_str());
+                     ALOGE("Codec reported error(0x%x), actionCode(%d), detail(%s)",
+                           err, actionCode, detail.c_str());
 
                      Mutex::Autolock _l(mCodec->mAsyncCallbackLock);
-                     if (mCodec->mAsyncCallback.onAsyncError != NULL) {
+                     if (mCodec->mAsyncCallbackUserData != NULL
+                         || mCodec->mAsyncCallback.onAsyncError != NULL) {
                          mCodec->mAsyncCallback.onAsyncError(
                                  mCodec,
                                  mCodec->mAsyncCallbackUserData,
@@ -312,43 +295,6 @@ void CodecHandler::onMessageReceived(const sp<AMessage> &msg) {
 
             sp<AMessage> response = new AMessage;
             response->postReply(replyID);
-            break;
-        }
-
-        case kWhatFrameRenderedNotify:
-        {
-            sp<AMessage> data;
-            if (!msg->findMessage("data", &data)) {
-                ALOGE("kWhatFrameRenderedNotify: data is expected.");
-                break;
-            }
-
-            AMessage::Type type;
-            int64_t mediaTimeUs, systemNano;
-            size_t index = 0;
-
-            // TODO. This code has dependency with MediaCodec::CreateFramesRenderedMessage.
-            for (size_t ix = 0; ix < data->countEntries(); ix++) {
-                AString name = data->getEntryNameAt(ix, &type);
-                if (name.startsWith(AStringPrintf("%zu-media-time-us", index).c_str())) {
-                    AMessage::ItemData data = msg->getEntryAt(index);
-                    data.find(&mediaTimeUs);
-                } else if (name.startsWith(AStringPrintf("%zu-system-nano", index).c_str())) {
-                    AMessage::ItemData data = msg->getEntryAt(index);
-                    data.find(&systemNano);
-
-                    Mutex::Autolock _l(mCodec->mFrameRenderedCallbackLock);
-                    if (mCodec->mFrameRenderedCallback != NULL) {
-                        mCodec->mFrameRenderedCallback(
-                                mCodec,
-                                mCodec->mFrameRenderedCallbackUserData,
-                                mediaTimeUs,
-                                systemNano);
-                    }
-
-                    index++;
-                }
-            }
             break;
         }
 
@@ -506,19 +452,17 @@ media_status_t AMediaCodec_configure(
         uint32_t flags) {
     sp<AMessage> nativeFormat;
     AMediaFormat_getFormat(format, &nativeFormat);
-    // create our shallow copy, so we aren't victim to any later changes.
-    sp<AMessage> dupNativeFormat = nativeFormat->dup();
-    ALOGV("configure with format: %s", dupNativeFormat->debugString(0).c_str());
+    ALOGV("configure with format: %s", nativeFormat->debugString(0).c_str());
     sp<Surface> surface = NULL;
     if (window != NULL) {
         surface = (Surface*) window;
     }
 
-    status_t err = mData->mCodec->configure(dupNativeFormat, surface,
+    status_t err = mData->mCodec->configure(nativeFormat, surface,
             crypto ? crypto->mCrypto : NULL, flags);
     if (err != OK) {
         ALOGE("configure: err(%d), failed with format: %s",
-              err, dupNativeFormat->debugString(0).c_str());
+              err, nativeFormat->debugString(0).c_str());
     }
     return translate_error(err);
 }
@@ -528,46 +472,22 @@ media_status_t AMediaCodec_setAsyncNotifyCallback(
         AMediaCodec *mData,
         AMediaCodecOnAsyncNotifyCallback callback,
         void *userdata) {
+    if (mData->mAsyncNotify == NULL && userdata != NULL) {
+        mData->mAsyncNotify = new AMessage(kWhatAsyncNotify, mData->mHandler);
+        status_t err = mData->mCodec->setCallback(mData->mAsyncNotify);
+        if (err != OK) {
+            ALOGE("setAsyncNotifyCallback: err(%d), failed to set async callback", err);
+            return translate_error(err);
+        }
+    }
 
     Mutex::Autolock _l(mData->mAsyncCallbackLock);
-
-    if (mData->mAsyncNotify == NULL) {
-        mData->mAsyncNotify = new AMessage(kWhatAsyncNotify, mData->mHandler);
-    }
-
-    // always call, codec may have been reset/re-configured since last call.
-    status_t err = mData->mCodec->setCallback(mData->mAsyncNotify);
-    if (err != OK) {
-        ALOGE("setAsyncNotifyCallback: err(%d), failed to set async callback", err);
-        return translate_error(err);
-    }
-
     mData->mAsyncCallback = callback;
     mData->mAsyncCallbackUserData = userdata;
 
     return AMEDIA_OK;
 }
 
-EXPORT
-media_status_t AMediaCodec_setOnFrameRenderedCallback(
-        AMediaCodec *mData,
-        AMediaCodecOnFrameRendered callback,
-        void *userdata) {
-    Mutex::Autolock _l(mData->mFrameRenderedCallbackLock);
-    if (mData->mFrameRenderedNotify == NULL) {
-        mData->mFrameRenderedNotify = new AMessage(kWhatFrameRenderedNotify, mData->mHandler);
-    }
-    status_t err = mData->mCodec->setOnFrameRenderedNotification(mData->mFrameRenderedNotify);
-    if (err != OK) {
-        ALOGE("setOnFrameRenderedNotifyCallback: err(%d), failed to set callback", err);
-        return translate_error(err);
-    }
-
-    mData->mFrameRenderedCallback = callback;
-    mData->mFrameRenderedCallbackUserData = userdata;
-
-    return AMEDIA_OK;
-}
 
 EXPORT
 media_status_t AMediaCodec_releaseCrypto(AMediaCodec *mData) {

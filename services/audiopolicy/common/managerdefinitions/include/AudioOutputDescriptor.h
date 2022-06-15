@@ -149,7 +149,7 @@ public:
                           AudioPolicyClientInterface *clientInterface);
     virtual ~AudioOutputDescriptor() {}
 
-    void dump(String8 *dst, int spaces, const char* extraInfo = nullptr) const override;
+    void dump(String8 *dst) const override;
     void        log(const char* indent);
 
     virtual DeviceVector devices() const { return mDevices; }
@@ -158,7 +158,7 @@ public:
     virtual bool isDuplicated() const { return false; }
     virtual uint32_t latency() { return 0; }
     virtual bool isFixedVolume(const DeviceTypeSet& deviceTypes);
-    virtual bool setVolume(float volumeDb, bool muted,
+    virtual bool setVolume(float volumeDb,
                            VolumeSource volumeSource, const StreamTypeVector &streams,
                            const DeviceTypeSet& deviceTypes,
                            uint32_t delayMs,
@@ -270,10 +270,8 @@ public:
     audio_patch_handle_t getPatchHandle() const override;
     void setPatchHandle(audio_patch_handle_t handle) override;
     bool isMmap() override {
-        if (const auto policyPort = getPolicyAudioPort(); policyPort != nullptr) {
-            if (const auto port = policyPort->asAudioPort(); port != nullptr) {
-                return port->isMmap();
-            }
+        if (getPolicyAudioPort() != nullptr) {
+            return getPolicyAudioPort()->isMmap();
         }
         return false;
     }
@@ -305,19 +303,15 @@ public:
     {
         return !devices().isEmpty() ? devices().itemAt(0)->hasGainController() : false;
     }
-    bool isRouted() const { return mPatchHandle != AUDIO_PATCH_HANDLE_NONE; }
 
     DeviceVector mDevices; /**< current devices this output is routed to */
     wp<AudioPolicyMix> mPolicyMix;  // non NULL when used by a dynamic policy
-
-    virtual uint32_t getRecommendedMuteDurationMs() const { return 0; }
 
 protected:
     const sp<PolicyAudioPort> mPolicyAudioPort;
     AudioPolicyClientInterface * const mClientInterface;
     uint32_t mGlobalActiveCount = 0;  // non-client-specific active count
     audio_patch_handle_t mPatchHandle = AUDIO_PATCH_HANDLE_NONE;
-    audio_output_flags_t& mFlags = AudioPortConfig::mFlags.output;
 
     // The ActiveClients shows the clients that contribute to the @VolumeSource counts
     // and may include upstream clients from a duplicating thread.
@@ -338,7 +332,7 @@ public:
                             AudioPolicyClientInterface *clientInterface);
     virtual ~SwAudioOutputDescriptor() {}
 
-    void dump(String8 *dst, int spaces, const char* extraInfo = nullptr) const override;
+            void dump(String8 *dst) const override;
     virtual DeviceVector devices() const;
     void setDevices(const DeviceVector &devices) { mDevices = devices; }
     bool sharesHwModuleWith(const sp<SwAudioOutputDescriptor>& outputDesc);
@@ -358,22 +352,7 @@ public:
             setClientActive(client, false);
         }
     }
-
-    /**
-     * @brief setSwMute for SwOutput routed on a device that supports Hw Gain, this function allows
-     * to mute the tracks associated to a given volume source only.
-     * As an output may host one or more source(s), and as AudioPolicyManager may dispatch or not
-     * the volume change request according to the priority of the volume source to control the
-     * unique hw gain controller, a separated API allows to force a mute/unmute of a volume source.
-     * @param muted true to mute, false otherwise
-     * @param vs volume source to be considered
-     * @param device scoped for the change
-     * @param delayMs potentially applyed to prevent cut sounds.
-     */
-    void setSwMute(bool muted, VolumeSource vs, const StreamTypeVector &streams,
-                   const DeviceTypeSet& device, uint32_t delayMs);
-
-    virtual bool setVolume(float volumeDb, bool muted,
+    virtual bool setVolume(float volumeDb,
                            VolumeSource volumeSource, const StreamTypeVector &streams,
                            const DeviceTypeSet& device,
                            uint32_t delayMs,
@@ -383,8 +362,7 @@ public:
                            const struct audio_port_config *srcConfig = NULL) const;
     virtual void toAudioPort(struct audio_port_v7 *port) const;
 
-        status_t open(const audio_config_t *halConfig,
-                      const audio_config_base_t *mixerConfig,
+        status_t open(const audio_config_t *config,
                       const DeviceVector &devices,
                       audio_stream_type_t stream,
                       audio_output_flags_t flags,
@@ -436,20 +414,15 @@ public:
      */
     DeviceVector filterSupportedDevices(const DeviceVector &devices) const;
 
-    uint32_t getRecommendedMuteDurationMs() const override;
-
-    void setTracksInvalidatedStatusByStrategy(product_strategy_t strategy);
-
     const sp<IOProfile> mProfile;          // I/O profile this output derives from
     audio_io_handle_t mIoHandle;           // output handle
     uint32_t mLatency;                  //
-    using AudioOutputDescriptor::mFlags;
+    audio_output_flags_t mFlags;   //
     sp<SwAudioOutputDescriptor> mOutput1;    // used by duplicated outputs: first output
     sp<SwAudioOutputDescriptor> mOutput2;    // used by duplicated outputs: second output
     uint32_t mDirectOpenCount; // number of clients using this output (direct outputs only)
     audio_session_t mDirectClientSession; // session id of the direct output client
     bool mPendingReopenToQueryProfiles = false;
-    audio_channel_mask_t mMixerChannelMask = AUDIO_CHANNEL_NONE;
 };
 
 // Audio output driven by an input device directly.
@@ -460,9 +433,9 @@ public:
                             AudioPolicyClientInterface *clientInterface);
     virtual ~HwAudioOutputDescriptor() {}
 
-    void dump(String8 *dst, int spaces, const char* extraInfo) const override;
+            void dump(String8 *dst) const override;
 
-    virtual bool setVolume(float volumeDb, bool muted,
+    virtual bool setVolume(float volumeDb,
                            VolumeSource volumeSource, const StreamTypeVector &streams,
                            const DeviceTypeSet& deviceTypes,
                            uint32_t delayMs,
@@ -518,14 +491,6 @@ public:
                                       uint32_t inPastMs = 0, nsecs_t sysTime = 0) const;
 
     /**
-     * @brief isStrategyActive checks if the given strategy is active
-     * on the given output
-     * @param ps product strategy to be checked upon activity status
-     * @return true if an output following the strategy is active, false otherwise
-     */
-    bool isStrategyActive(product_strategy_t ps) const;
-
-    /**
      * @brief clearSessionRoutesForDevice: when a device is disconnected, and if this device has
      * been chosen as the preferred device by any client, the policy manager shall
      * prevent from using this device any more by clearing all the session routes involving this
@@ -569,11 +534,6 @@ public:
     audio_devices_t getSupportedDevices(audio_io_handle_t handle) const;
 
     sp<SwAudioOutputDescriptor> getOutputForClient(audio_port_handle_t portId);
-
-    /**
-     * return whether any output is active and routed to any of the specified devices
-     */
-    bool isAnyDeviceTypeActive(const DeviceTypeSet& deviceTypes) const;
 
     void dump(String8 *dst) const;
 };

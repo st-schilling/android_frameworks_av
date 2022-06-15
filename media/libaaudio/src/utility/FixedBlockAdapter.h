@@ -35,7 +35,7 @@ public:
 class FixedBlockAdapter
 {
 public:
-    explicit FixedBlockAdapter(FixedBlockProcessor &fixedBlockProcessor)
+    FixedBlockAdapter(FixedBlockProcessor &fixedBlockProcessor)
     : mFixedBlockProcessor(fixedBlockProcessor) {}
 
     virtual ~FixedBlockAdapter() = default;

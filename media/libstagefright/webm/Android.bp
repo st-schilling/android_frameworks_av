@@ -33,11 +33,7 @@ cc_library_static {
         "WebmWriter.cpp",
     ],
 
-    local_include_dirs: [
-        "include/webm",
-    ],
-
-    export_include_dirs: ["include"],
+    include_dirs: ["frameworks/av/include"],
 
     shared_libs: [
         "libdatasource",
@@ -48,20 +44,7 @@ cc_library_static {
     ],
 
     header_libs: [
-        "av-headers",
         "libmedia_headers",
+        "media_ndk_headers",
     ],
-}
-
-
-cc_library_headers {
-    name: "libstagefright_webm_headers",
-    export_include_dirs: ["include"],
-
-    host_supported: true,
-    target: {
-        darwin: {
-            enabled: false,
-        },
-    },
 }

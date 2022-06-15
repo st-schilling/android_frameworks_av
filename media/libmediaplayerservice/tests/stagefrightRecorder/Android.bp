@@ -33,6 +33,10 @@ cc_test {
         "StagefrightRecorderTest.cpp",
     ],
 
+    include_dirs: [
+        "frameworks/av/media/libmediaplayerservice",
+    ],
+
     static_libs: [
         "libmediaplayerservice",
         "libstagefright_httplive",

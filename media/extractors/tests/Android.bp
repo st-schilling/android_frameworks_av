@@ -79,6 +79,11 @@ cc_test {
         "libbase",
     ],
 
+    include_dirs: [
+        "frameworks/av/media/extractors/",
+        "frameworks/av/media/libstagefright/",
+    ],
+
     compile_multilib: "first",
 
     cflags: [

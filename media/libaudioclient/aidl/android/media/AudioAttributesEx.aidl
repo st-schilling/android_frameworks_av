@@ -17,7 +17,7 @@
 package android.media;
 
 import android.media.AudioAttributesInternal;
-import android.media.audio.common.AudioStreamType;
+import android.media.AudioStreamType;
 
 /**
  * This is the equivalent of the android::AudioAttributes C++ type.

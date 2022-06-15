@@ -63,53 +63,48 @@ const DeviceTypeSet& getAudioDeviceInAllUsbSet() {
     return audioDeviceInAllUsbSet;
 }
 
-const DeviceTypeSet& getAudioDeviceOutAllBleSet() {
-    static const DeviceTypeSet audioDeviceOutAllBleSet = DeviceTypeSet(
-            std::begin(AUDIO_DEVICE_OUT_ALL_BLE_ARRAY),
-            std::end(AUDIO_DEVICE_OUT_ALL_BLE_ARRAY));
-    return audioDeviceOutAllBleSet;
-}
-
-const DeviceTypeSet& getAudioDeviceOutLeAudioUnicastSet() {
-    static const DeviceTypeSet audioDeviceOutLeAudioUnicastSet = DeviceTypeSet(
-            std::begin(AUDIO_DEVICE_OUT_BLE_UNICAST_ARRAY),
-            std::end(AUDIO_DEVICE_OUT_BLE_UNICAST_ARRAY));
-    return audioDeviceOutLeAudioUnicastSet;
-}
-
-std::string deviceTypesToString(const DeviceTypeSet &deviceTypes) {
-    if (deviceTypes.empty()) {
-        return "Empty device types";
-    }
-    std::stringstream ss;
-    for (auto it = deviceTypes.begin(); it != deviceTypes.end(); ++it) {
-        if (it != deviceTypes.begin()) {
-            ss << ", ";
-        }
-        const char* strType = audio_device_to_string(*it);
-        if (strlen(strType) != 0) {
-            ss << strType;
-        } else {
-            ss << "unknown type:0x" << std::hex << *it;
-        }
-    }
-    return ss.str();
-}
-
 bool deviceTypesToString(const DeviceTypeSet &deviceTypes, std::string &str) {
-    str = deviceTypesToString(deviceTypes);
-    return true;
+    if (deviceTypes.empty()) {
+        str = "Empty device types";
+        return true;
+    }
+    bool ret = true;
+    for (auto it = deviceTypes.begin(); it != deviceTypes.end();) {
+        std::string deviceTypeStr;
+        ret = audio_is_output_device(*it) ?
+              OutputDeviceConverter::toString(*it, deviceTypeStr) :
+              InputDeviceConverter::toString(*it, deviceTypeStr);
+        if (!ret) {
+            break;
+        }
+        str.append(deviceTypeStr);
+        if (++it != deviceTypes.end()) {
+            str.append(" , ");
+        }
+    }
+    if (!ret) {
+        str = "Unknown values";
+    }
+    return ret;
 }
 
 std::string dumpDeviceTypes(const DeviceTypeSet &deviceTypes) {
-    std::stringstream ss;
-    for (auto it = deviceTypes.begin(); it != deviceTypes.end(); ++it) {
-        if (it != deviceTypes.begin()) {
-            ss << ", ";
-        }
+    std::string ret;
+    for (auto it = deviceTypes.begin(); it != deviceTypes.end();) {
+        std::stringstream ss;
         ss << "0x" << std::hex << (*it);
+        ret.append(ss.str());
+        if (++it != deviceTypes.end()) {
+            ret.append(" , ");
+        }
     }
-    return ss.str();
+    return ret;
+}
+
+std::string toString(const DeviceTypeSet& deviceTypes) {
+    std::string ret;
+    deviceTypesToString(deviceTypes, ret);
+    return ret;
 }
 
 } // namespace android

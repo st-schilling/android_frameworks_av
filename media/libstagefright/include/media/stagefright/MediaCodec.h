@@ -25,7 +25,6 @@
 #include <media/hardware/CryptoAPI.h>
 #include <media/MediaCodecInfo.h>
 #include <media/MediaMetrics.h>
-#include <media/MediaProfiles.h>
 #include <media/stagefright/foundation/AHandler.h>
 #include <media/stagefright/FrameRenderTracker.h>
 #include <utils/Vector.h>
@@ -71,13 +70,6 @@ using hardware::cas::native::V1_0::IDescrambler;
 using aidl::android::media::MediaResourceParcel;
 
 struct MediaCodec : public AHandler {
-    enum Domain {
-        DOMAIN_UNKNOWN = 0,
-        DOMAIN_VIDEO = 1,
-        DOMAIN_AUDIO = 2,
-        DOMAIN_IMAGE = 3
-    };
-
     enum ConfigureFlags {
         CONFIGURE_FLAG_ENCODE           = 1,
         CONFIGURE_FLAG_USE_BLOCK_MODEL  = 2,
@@ -398,7 +390,6 @@ private:
     // <all states>     -> EnabledNoBuffer  when flush
     // <all states>     -> EnabledNoBuffer  when stop then configure then start
     enum struct TunnelPeekState {
-        kLegacyMode,
         kDisabledNoBuffer,
         kEnabledNoBuffer,
         kDisabledQueued,
@@ -410,6 +401,7 @@ private:
     struct ResourceManagerServiceProxy;
 
     State mState;
+    uid_t mUid;
     bool mReleasedByResourceManager;
     sp<ALooper> mLooper;
     sp<ALooper> mCodecLooper;
@@ -446,19 +438,12 @@ private:
 
     sp<ResourceManagerServiceProxy> mResourceManagerProxy;
 
-    Domain mDomain;
+    bool mIsVideo;
     AString mLogSessionId;
-    int32_t mWidth;
-    int32_t mHeight;
+    int32_t mVideoWidth;
+    int32_t mVideoHeight;
     int32_t mRotationDegrees;
     int32_t mAllowFrameDroppingBySurface;
-
-    int32_t mConfigColorTransfer;
-    bool mHDRStaticInfo;
-    bool mHDR10PlusInfo;
-    void updateHDRFormatMetric();
-    hdr_format getHDRFormat(const int32_t profile, const int32_t transfer,
-            const AString &mediaType);
 
     // initial create parameters
     AString mInitName;
@@ -511,7 +496,7 @@ private:
 
     std::shared_ptr<BufferChannelBase> mBufferChannel;
 
-    std::unique_ptr<PlaybackDurationAccumulator> mPlaybackDurationAccumulator;
+    PlaybackDurationAccumulator * mPlaybackDurationAccumulator;
     bool mIsSurfaceToScreen;
 
     MediaCodec(

@@ -16,13 +16,44 @@
 
 package android.media;
 
-import android.media.AudioPortConfigSys;
-import android.media.audio.common.AudioPortConfig;
+import android.media.AudioGainConfig;
+import android.media.AudioIoFlags;
+import android.media.AudioPortConfigExt;
+import android.media.AudioPortConfigType;
+import android.media.AudioPortRole;
+import android.media.AudioPortType;
+import android.media.audio.common.AudioFormat;
 
 /**
  * {@hide}
  */
 parcelable AudioPortConfig {
-    AudioPortConfig hal;
-    AudioPortConfigSys sys;
+    /**
+     * Port unique ID.
+     * Interpreted as audio_port_handle_t.
+     */
+    int id;
+    /** Sink or source. */
+    AudioPortRole role;
+    /** Device, mix ... */
+    AudioPortType type;
+    /** Bitmask, indexed by AudioPortConfigType. */
+    int configMask;
+    /** Sampling rate in Hz. */
+    int sampleRate;
+    /**
+     * Channel mask, if applicable.
+     * Interpreted as audio_channel_mask_t.
+     * TODO: bitmask?
+     */
+    int channelMask;
+    /**
+     * Format, if applicable.
+     */
+    AudioFormat format;
+    /** Gain to apply, if applicable. */
+    AudioGainConfig gain;
+    /** Framework only: HW_AV_SYNC, DIRECT, ... */
+    AudioIoFlags flags;
+    AudioPortConfigExt ext;
 }

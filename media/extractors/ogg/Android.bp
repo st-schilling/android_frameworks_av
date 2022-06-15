@@ -22,8 +22,8 @@ cc_library {
 
     srcs: ["OggExtractor.cpp"],
 
-    export_include_dirs: [
-        "include",
+    include_dirs: [
+        "external/tremolo",
     ],
 
     header_libs: [

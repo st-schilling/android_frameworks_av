@@ -205,7 +205,7 @@ struct Parameters {
     static const int MAX_INITIAL_PREVIEW_WIDTH = 1920;
     static const int MAX_INITIAL_PREVIEW_HEIGHT = 1080;
     // Aspect ratio tolerance
-    static const CONSTEXPR float ASPECT_RATIO_TOLERANCE = 0.01;
+    static const CONSTEXPR float ASPECT_RATIO_TOLERANCE = 0.001;
     // Threshold for slow jpeg mode
     static const int64_t kSlowJpegModeThreshold = 33400000LL; // 33.4 ms
     // Margin for checking FPS
@@ -269,7 +269,7 @@ struct Parameters {
     ~Parameters();
 
     // Sets up default parameters
-    status_t initialize(CameraDeviceBase *device);
+    status_t initialize(CameraDeviceBase *device, int deviceVersion);
 
     // Build fast-access device static info from static info
     status_t buildFastInfo(CameraDeviceBase *device);
@@ -396,10 +396,9 @@ private:
 
     Vector<Size> availablePreviewSizes;
     Vector<Size> availableVideoSizes;
-    // Get size list (that fall within lower/upper bounds) from static metadata.
+    // Get size list (that are no larger than limit) from static metadata.
     // This method filtered size with minFrameDuration < MAX_PREVIEW_RECORD_DURATION_NS
-    status_t getFilteredSizes(const Size &lower, const Size &upper,
-            Vector<Size> *sizes);
+    status_t getFilteredSizes(Size limit, Vector<Size> *sizes);
     // Get max size (from the size array) that matches the given aspect ratio.
     Size getMaxSizeForRatio(float ratio, const int32_t* sizeArray, size_t count);
 
@@ -459,6 +458,7 @@ private:
     // Helper function to get the suggested video sizes
     Vector<Size> getPreferredVideoSizes() const;
 
+    int mDeviceVersion;
     uint8_t mDefaultSceneMode;
 };
 

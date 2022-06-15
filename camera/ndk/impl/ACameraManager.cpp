@@ -189,12 +189,8 @@ void CameraManagerGlobal::DeathNotifier::binderDied(const wp<IBinder>&)
     sp<CameraManagerGlobal> cm = mCameraManager.promote();
     if (cm != nullptr) {
         AutoMutex lock(cm->mLock);
-        std::vector<String8> cameraIdList;
         for (auto& pair : cm->mDeviceStatusMap) {
-            cameraIdList.push_back(pair.first);
-        }
-
-        for (String8 cameraId : cameraIdList) {
+            const String8 &cameraId = pair.first;
             cm->onStatusChangedLocked(
                     CameraServiceListener::STATUS_NOT_PRESENT, cameraId);
         }

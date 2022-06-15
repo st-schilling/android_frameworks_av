@@ -20,10 +20,11 @@
 
 #include <gtest/gtest.h>
 
+#include "MediaCodecListOverrides.h"
+
 #include <media/MediaCodecInfo.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaCodecList.h>
-#include <media/stagefright/MediaCodecListOverrides.h>
 
 #include <vector>
 

@@ -18,7 +18,6 @@
 #define ANDROID_C2_SOFT_AVC_ENC_H__
 
 #include <map>
-#include <inttypes.h>
 
 #include <utils/Vector.h>
 
@@ -116,6 +115,14 @@ namespace android {
 /** Used to remove warnings about unused parameters */
 #define UNUSED(x) ((void)(x))
 
+/** Get time */
+#define GETTIME(a, b) gettimeofday(a, b);
+
+/** Compute difference between start and end */
+#define TIME_DIFF(start, end, diff) \
+    diff = (((end).tv_sec - (start).tv_sec) * 1000000) + \
+            ((end).tv_usec - (start).tv_usec);
+
 #define ive_aligned_malloc(alignment, size) memalign(alignment, size)
 #define ive_aligned_free(buf) free(buf)
 
@@ -141,7 +148,6 @@ protected:
     virtual ~C2SoftAvcEnc();
 
 private:
-    // RBE What does OMX have to do with the c2 plugin?
     // OMX input buffer's timestamp and flags
     typedef struct {
         int64_t mTimeUs;
@@ -152,8 +158,8 @@ private:
 
     int32_t mStride;
 
-    nsecs_t mTimeStart = 0;   // Time at the start of decode()
-    nsecs_t mTimeEnd = 0;     // Time at the end of decode()
+    struct timeval mTimeStart;   // Time at the start of decode()
+    struct timeval mTimeEnd;     // Time at the end of decode()
 
 #ifdef FILE_DUMP_ENABLE
     char mInFile[200];
@@ -253,14 +259,14 @@ private:
 #define OUTPUT_DUMP_EXT     "h264"
 
 #define GENERATE_FILE_NAMES() {                         \
-    nsecs_t now = systemTime();                         \
+    GETTIME(&mTimeStart, NULL);                         \
     strcpy(mInFile, "");                                \
-    sprintf(mInFile, "%s_%" PRId64 "d.%s",              \
-            INPUT_DUMP_PATH, now,                       \
+    sprintf(mInFile, "%s_%ld.%ld.%s", INPUT_DUMP_PATH,  \
+            mTimeStart.tv_sec, mTimeStart.tv_usec,      \
             INPUT_DUMP_EXT);                            \
     strcpy(mOutFile, "");                               \
-    sprintf(mOutFile, "%s_%" PRId64 "d.%s",             \
-            OUTPUT_DUMP_PATH, now,                      \
+    sprintf(mOutFile, "%s_%ld.%ld.%s", OUTPUT_DUMP_PATH,\
+            mTimeStart.tv_sec, mTimeStart.tv_usec,      \
             OUTPUT_DUMP_EXT);                           \
 }
 

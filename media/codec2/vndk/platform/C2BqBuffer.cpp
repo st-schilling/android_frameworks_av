@@ -542,7 +542,7 @@ private:
                         std::make_shared<C2BufferQueueBlockPoolData>(
                                 slotBuffer->getGenerationNumber(),
                                 mProducerId, slot,
-                                mIgbpValidityToken, mProducer, mSyncMem);
+                                mProducer, mSyncMem, 0);
                 mPoolDatas[slot] = poolData;
                 *block = _C2BlockFactory::CreateGraphicBlock(alloc, poolData);
                 return C2_OK;
@@ -571,12 +571,11 @@ private:
 public:
     Impl(const std::shared_ptr<C2Allocator> &allocator)
         : mInit(C2_OK), mProducerId(0), mGeneration(0),
-          mConsumerUsage(0), mDqFailure(0), mLastDqTs(0),
-          mLastDqLogTs(0), mAllocator(allocator), mIgbpValidityToken(std::make_shared<int>(0)) {
+          mDqFailure(0), mLastDqTs(0), mLastDqLogTs(0),
+          mAllocator(allocator) {
     }
 
     ~Impl() {
-        mIgbpValidityToken.reset();
         for (int i = 0; i < NUM_BUFFER_SLOTS; ++i) {
             mBuffers[i].clear();
         }
@@ -619,7 +618,7 @@ public:
             }
             std::shared_ptr<C2BufferQueueBlockPoolData> poolData =
                     std::make_shared<C2BufferQueueBlockPoolData>(
-                            0, (uint64_t)0, ~0, nullptr, nullptr, nullptr);
+                            0, (uint64_t)0, ~0, nullptr, nullptr, 0);
             *block = _C2BlockFactory::CreateGraphicBlock(alloc, poolData);
             ALOGV("allocated a buffer successfully");
 
@@ -695,7 +694,8 @@ public:
                 mProducer = nullptr;
                 mProducerId = 0;
                 mGeneration = 0;
-                ALOGD("configuring null producer: igbp_information(%d)", bqInformation);
+                ALOGW("invalid producer producer(%d), generation(%d)",
+                      (bool)producer, bqInformation);
             }
             oldMem = mSyncMem; // preven destruction while locked.
             mSyncMem = c2SyncMem;
@@ -720,10 +720,6 @@ public:
                         }
                     }
                 }
-            } else {
-                // old buffers should not be cancelled since the associated IGBP
-                // is no longer valid.
-                mIgbpValidityToken = std::make_shared<int>(0);
             }
             for (int i = 0; i < NUM_BUFFER_SLOTS; ++i) {
                 mBuffers[i] = buffers[i];
@@ -735,11 +731,6 @@ public:
                   "bqId: %llu migrated buffers # %d",
                   generation, (unsigned long long)producerId, migrated);
         }
-        mConsumerUsage = usage;
-    }
-
-    void getConsumerUsage(uint64_t *consumeUsage) {
-        *consumeUsage = mConsumerUsage;
     }
 
 private:
@@ -748,7 +739,6 @@ private:
     c2_status_t mInit;
     uint64_t mProducerId;
     uint32_t mGeneration;
-    uint64_t mConsumerUsage;
     OnRenderCallback mRenderCallback;
 
     size_t mDqFailure;
@@ -765,20 +755,6 @@ private:
     std::weak_ptr<C2BufferQueueBlockPoolData> mPoolDatas[NUM_BUFFER_SLOTS];
 
     std::shared_ptr<C2SurfaceSyncMemory> mSyncMem;
-
-    // IGBP invalidation notification token.
-    // The buffers(C2BufferQueueBlockPoolData) has the reference to the IGBP where
-    // they belong in order to call IGBP::cancelBuffer() when they are of no use.
-    //
-    // In certain cases, IGBP is no longer used by this class(actually MediaCodec)
-    // any more and the situation needs to be addressed quickly. In order to
-    // achieve those, std::shared_ptr<> is used as a token for quick IGBP invalidation
-    // notification from the buffers.
-    //
-    // The buffer side will have the reference of the token as std::weak_ptr<>.
-    // if the token has been expired, the buffers will not call IGBP::cancelBuffer()
-    // when they are no longer used.
-    std::shared_ptr<int> mIgbpValidityToken;
 };
 
 C2BufferQueueBlockPoolData::C2BufferQueueBlockPoolData(
@@ -794,14 +770,14 @@ C2BufferQueueBlockPoolData::C2BufferQueueBlockPoolData(
 
 C2BufferQueueBlockPoolData::C2BufferQueueBlockPoolData(
         uint32_t generation, uint64_t bqId, int32_t bqSlot,
-        const std::shared_ptr<int>& owner,
         const android::sp<HGraphicBufferProducer>& producer,
-        std::shared_ptr<C2SurfaceSyncMemory> syncMem) :
+        std::shared_ptr<C2SurfaceSyncMemory> syncMem, int noUse) :
         mLocal(true), mHeld(true),
         mGeneration(generation), mBqId(bqId), mBqSlot(bqSlot),
         mCurrentGeneration(generation), mCurrentBqId(bqId),
         mTransfer(false), mAttach(false), mDisplay(false),
-        mOwner(owner), mIgbp(producer), mSyncMem(syncMem) {
+        mIgbp(producer), mSyncMem(syncMem) {
+            (void)noUse;
 }
 
 C2BufferQueueBlockPoolData::~C2BufferQueueBlockPoolData() {
@@ -810,7 +786,7 @@ C2BufferQueueBlockPoolData::~C2BufferQueueBlockPoolData() {
     }
 
     if (mLocal) {
-        if (mGeneration == mCurrentGeneration && mBqId == mCurrentBqId && !mOwner.expired()) {
+        if (mGeneration == mCurrentGeneration && mBqId == mCurrentBqId) {
             C2SyncVariables *syncVar = mSyncMem ? mSyncMem->mem() : nullptr;
             if (syncVar) {
                 syncVar->lock();
@@ -1094,10 +1070,3 @@ void C2BufferQueueBlockPool::setRenderCallback(const OnRenderCallback &renderCal
         mImpl->setRenderCallback(renderCallback);
     }
 }
-
-void C2BufferQueueBlockPool::getConsumerUsage(uint64_t *consumeUsage) {
-    if (mImpl) {
-        mImpl->getConsumerUsage(consumeUsage);
-    }
-}
-

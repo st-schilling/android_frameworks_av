@@ -30,8 +30,7 @@ public:
     }
     status_t openOutput(audio_module_handle_t /*module*/,
                         audio_io_handle_t* /*output*/,
-                        audio_config_t* /*halConfig*/,
-                        audio_config_base_t* /*mixerConfig*/,
+                        audio_config_t* /*config*/,
                         const sp<DeviceDescriptorBase>& /*device*/,
                         uint32_t* /*latencyMs*/,
                         audio_output_flags_t /*flags*/) override { return NO_INIT; }
@@ -85,7 +84,6 @@ public:
                                         audio_patch_handle_t patchHandle __unused,
                                         audio_source_t source __unused) override { }
     void onRoutingUpdated() override { }
-    void onVolumeRangeInitRequest() override { }
     void setEffectSuspended(int effectId __unused,
                             audio_session_t sessionId __unused,
                             bool suspended __unused) {}
@@ -95,10 +93,6 @@ public:
     };
     status_t updateSecondaryOutputs(
             const TrackSecondaryOutputsMap& trackSecondaryOutputs __unused) override {
-        return NO_INIT;
-    }
-    status_t setDeviceConnectedState(
-            const struct audio_port_v7 *port __unused, bool connected __unused) override {
         return NO_INIT;
     }
 };

@@ -18,6 +18,10 @@ cc_test {
         "-Wall",
     ],
 
+    include_dirs: [
+        "frameworks/av/include",
+    ],
+
     shared_libs: [
         "liblog",
         "libstagefright_foundation",

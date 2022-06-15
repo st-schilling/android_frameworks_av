@@ -30,9 +30,8 @@ namespace aaudio {
 
 class AudioStreamInternalPlay : public AudioStreamInternal {
 public:
-    explicit AudioStreamInternalPlay(AAudioServiceInterface  &serviceInterface,
-                                     bool inService = false);
-    virtual ~AudioStreamInternalPlay() = default;
+    AudioStreamInternalPlay(AAudioServiceInterface  &serviceInterface, bool inService = false);
+    virtual ~AudioStreamInternalPlay();
 
     aaudio_result_t open(const AudioStreamBuilder &builder) override;
 
@@ -67,7 +66,7 @@ protected:
 
     void prepareBuffersForStart() override;
 
-    void advanceClientToMatchServerPosition(int32_t serverMargin) override;
+    void advanceClientToMatchServerPosition(int32_t serverMargin = 0) override;
 
     void onFlushFromServer() override;
 

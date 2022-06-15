@@ -76,7 +76,6 @@
 #include <media/VolumeShaper.h>
 #include <mediautils/ServiceUtilities.h>
 #include <mediautils/Synchronization.h>
-#include <mediautils/ThreadSnapshot.h>
 
 #include <audio_utils/clock.h>
 #include <audio_utils/FdToString.h>
@@ -270,9 +269,6 @@ public:
 
     /* Indicate JAVA services are ready (scheduling, power management ...) */
     virtual status_t systemReady();
-    virtual status_t audioPolicyReady() { mAudioPolicyReady.store(true); return NO_ERROR; }
-            bool isAudioPolicyReady() const { return mAudioPolicyReady.load(); }
-
 
     virtual status_t getMicrophones(std::vector<media::MicrophoneInfo> *microphones);
 
@@ -282,16 +278,6 @@ public:
 
     virtual status_t updateSecondaryOutputs(
             const TrackSecondaryOutputsMap& trackSecondaryOutputs);
-
-    virtual status_t getMmapPolicyInfos(
-            media::audio::common::AudioMMapPolicyType policyType,
-            std::vector<media::audio::common::AudioMMapPolicyInfo> *policyInfos);
-
-    virtual int32_t getAAudioMixerBurstCount();
-
-    virtual int32_t getAAudioHardwareBurstMinUsec();
-
-    virtual status_t setDeviceConnectedState(const struct audio_port_v7 *port, bool connected);
 
     status_t onTransactWrapper(TransactionCode code, const Parcel& data, uint32_t flags,
         const std::function<status_t()>& delegate) override;
@@ -323,7 +309,7 @@ public:
     void updateDownStreamPatches_l(const struct audio_patch *patch,
                                    const std::set<audio_io_handle_t> streams);
 
-    std::optional<media::AudioVibratorInfo> getDefaultVibratorInfo_l();
+    const media::AudioVibratorInfo* getDefaultVibratorInfo_l();
 
 private:
     // FIXME The 400 is temporarily too high until a leak of writers in media.log is fixed.
@@ -749,8 +735,7 @@ using effect_buffer_t = int16_t;
                                            const String8& outputDeviceAddress);
               sp<ThreadBase> openOutput_l(audio_module_handle_t module,
                                           audio_io_handle_t *output,
-                                          audio_config_t *halConfig,
-                                          audio_config_base_t *mixerConfig,
+                                          audio_config_t *config,
                                           audio_devices_t deviceType,
                                           const String8& address,
                                           audio_output_flags_t flags);
@@ -761,7 +746,7 @@ using effect_buffer_t = int16_t;
               // no range check, AudioFlinger::mLock held
               bool streamMute_l(audio_stream_type_t stream) const
                                 { return mStreamTypes[stream].mute; }
-              void ioConfigChanged(audio_io_config_event_t event,
+              void ioConfigChanged(audio_io_config_event event,
                                    const sp<AudioIoDescriptor>& ioDesc,
                                    pid_t pid = 0);
 
@@ -915,7 +900,6 @@ using effect_buffer_t = int16_t;
         AUDIO_HW_SET_MASTER_MUTE,       // set_master_mute
         AUDIO_HW_GET_MASTER_MUTE,       // get_master_mute
         AUDIO_HW_GET_MICROPHONES,       // getMicrophones
-        AUDIO_HW_SET_CONNECTED_STATE,   // setConnectedState
     };
 
     mutable     hardware_call_state                 mHardwareStatus;    // for dump only
@@ -1002,7 +986,6 @@ private:
     DeviceEffectManager mDeviceEffectManager;
 
     bool       mSystemReady;
-    std::atomic_bool mAudioPolicyReady{};
 
     mediautils::UidInfo mUidInfo;
 
@@ -1016,11 +999,6 @@ private:
 
     // Keep in sync with java definition in media/java/android/media/AudioRecord.java
     static constexpr int32_t kMaxSharedAudioHistoryMs = 5000;
-
-    std::map<media::audio::common::AudioMMapPolicyType,
-             std::vector<media::audio::common::AudioMMapPolicyInfo>> mPolicyInfos;
-    int32_t mAAudioBurstsPerBuffer = 0;
-    int32_t mAAudioHwBurstMinMicros = 0;
 };
 
 #undef INCLUDING_FROM_AUDIOFLINGER_H

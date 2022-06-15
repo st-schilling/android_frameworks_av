@@ -67,11 +67,7 @@ OggWriter::~OggWriter() {
         mFd = -1;
     }
 
-    if (mOs != nullptr) {
-        ogg_stream_clear(mOs);
-        free(mOs);
-        mOs = nullptr;
-    }
+    free(mOs);
 }
 
 status_t OggWriter::initCheck() const {

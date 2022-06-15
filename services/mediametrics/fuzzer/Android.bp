@@ -56,11 +56,11 @@ cc_fuzz {
         "libstatssocket",
         "libutils",
         "mediametricsservice-aidl-cpp",
-        "packagemanager_aidl-cpp",
     ],
 
-    header_libs: [
-        "libaudioutils_headers",
+    include_dirs: [
+        "frameworks/av/services/mediametrics",
+        "system/media/audio_utils/include",
     ],
 
     fuzz_config: {

@@ -16,8 +16,6 @@
 
 package android.media;
 
-import android.media.audio.common.AudioDeviceDescription;
-
 /**
  * {@hide}
  */
@@ -26,6 +24,6 @@ parcelable SoundTriggerSession {
     int session;
     /** Interpreted as audio_io_handle_t. */
     int ioHandle;
-    /** Device type. */
-    AudioDeviceDescription device;
+    /** Interpreted as audio_devices_t. */
+    int device;
 }

@@ -75,21 +75,10 @@ status_t MediaAppender::init() {
         return status;
     }
 
-    sp<AMessage> fileFormat;
-    status = mExtractor->getFileFormat(&fileFormat);
-    if (status != OK) {
-        ALOGE("extractor_getFileFormat failed, status :%d", status);
-        return status;
-    }
-
-    AString fileMime;
-    fileFormat->findString("mime", &fileMime);
-    // only compare the end of the file MIME type to allow for vendor customized mime type
-    if (fileMime.endsWith("mp4")){
+    if (strcmp("MPEG4Extractor", mExtractor->getName()) == 0) {
         mFormat = MediaMuxer::OUTPUT_FORMAT_MPEG_4;
     } else {
-        ALOGE("Unsupported file format, extractor name:%s, fileformat %s",
-              mExtractor->getName(), fileMime.c_str());
+        ALOGE("Unsupported format, extractor name:%s", mExtractor->getName());
         return ERROR_UNSUPPORTED;
     }
 

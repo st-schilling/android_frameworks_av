@@ -23,10 +23,8 @@
 
 #include <mutex>
 #include <set>
-#include <unordered_map>
 
 #include <binder/Parcel.h>
-#include <cutils/multiuser.h>
 #include <cutils/properties.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
@@ -52,33 +50,6 @@ namespace android::mediametrics {
 // after this many failed attempts, we stop trying [from this process] and just say that
 // the service is off.
 #define SVC_TRIES               2
-
-static const std::unordered_map<std::string, int32_t>& getErrorStringMap() {
-    // DO NOT MODIFY VALUES (OK to add new ones).
-    // This may be found in frameworks/av/media/libmediametrics/include/MediaMetricsConstants.h
-    static std::unordered_map<std::string, int32_t> map{
-        {"",                                      NO_ERROR},
-        {AMEDIAMETRICS_PROP_STATUS_VALUE_OK,       NO_ERROR},
-        {AMEDIAMETRICS_PROP_STATUS_VALUE_ARGUMENT, BAD_VALUE},
-        {AMEDIAMETRICS_PROP_STATUS_VALUE_IO,       DEAD_OBJECT},
-        {AMEDIAMETRICS_PROP_STATUS_VALUE_MEMORY,   NO_MEMORY},
-        {AMEDIAMETRICS_PROP_STATUS_VALUE_SECURITY, PERMISSION_DENIED},
-        {AMEDIAMETRICS_PROP_STATUS_VALUE_STATE,    INVALID_OPERATION},
-        {AMEDIAMETRICS_PROP_STATUS_VALUE_TIMEOUT,  WOULD_BLOCK},
-        {AMEDIAMETRICS_PROP_STATUS_VALUE_UNKNOWN,  UNKNOWN_ERROR},
-    };
-    return map;
-}
-
-status_t statusStringToStatus(const char *error) {
-    const auto& map = getErrorStringMap();
-    if (error == nullptr || error[0] == '\0') return NO_ERROR;
-    auto it = map.find(error);
-    if (it != map.end()) {
-        return it->second;
-    }
-    return UNKNOWN_ERROR;
-}
 
 mediametrics::Item* mediametrics::Item::convert(mediametrics_handle_t handle) {
     mediametrics::Item *item = (android::mediametrics::Item *) handle;
@@ -344,8 +315,7 @@ bool BaseItem::isEnabled() {
         // now.
         // TODO(b/190151205): Either allow the HotwordDetectionService to access MediaMetrics or
         // make this disabling specific to that process.
-        uid_t appid = multiuser_get_app_id(uid);
-        if (appid >= AID_ISOLATED_START && appid <= AID_ISOLATED_END) {
+        if (uid >= AID_ISOLATED_START && uid <= AID_ISOLATED_END) {
             return false;
         }
         break;

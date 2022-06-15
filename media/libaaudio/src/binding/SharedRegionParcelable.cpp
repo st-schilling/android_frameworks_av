@@ -29,7 +29,10 @@
 #include "binding/SharedMemoryParcelable.h"
 #include "binding/SharedRegionParcelable.h"
 
+using android::NO_ERROR;
 using android::status_t;
+using android::Parcel;
+using android::Parcelable;
 
 using namespace aaudio;
 

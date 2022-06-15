@@ -33,12 +33,7 @@ cc_test {
 
     srcs: ["ExtractorTest.cpp"],
 
-    static_libs: ["libmediabenchmark_extractor"],
-
-    shared_libs: [
-        "libbase",
-        "libbinder_ndk",
-    ],
+    static_libs: ["libmediabenchmark_extractor"]
 }
 
 cc_test {
@@ -54,11 +49,6 @@ cc_test {
     static_libs: [
         "libmediabenchmark_extractor",
         "libmediabenchmark_decoder",
-    ],
-
-    shared_libs: [
-        "libbase",
-        "libbinder_ndk",
     ],
 }
 

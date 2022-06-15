@@ -22,12 +22,8 @@ cc_library_static {
         "ZeroFilter.cpp",
     ],
 
-    export_include_dirs: [
-        "include",
-    ],
-
-    local_include_dirs: [
-        "include/filters",
+    include_dirs: [
+        "frameworks/native/include/media/openmax",
     ],
 
     cflags: [

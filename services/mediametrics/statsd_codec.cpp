@@ -34,7 +34,7 @@
 
 #include "cleaner.h"
 #include "MediaMetricsService.h"
-#include "ValidateId.h"
+#include "StringUtils.h"
 #include "frameworks/proto_logging/stats/message/mediametrics_message.pb.h"
 #include "iface_statsd.h"
 
@@ -228,10 +228,10 @@ bool statsd_codec(const std::shared_ptr<const mediametrics::Item>& item,
 
     std::string sessionId;
     if (item->getString("android.media.mediacodec.log-session-id", &sessionId)) {
-        sessionId = mediametrics::ValidateId::get()->validateId(sessionId);
+        sessionId = mediametrics::stringutils::sanitizeLogSessionId(sessionId);
         metrics_proto.set_log_session_id(sessionId);
     }
-    AStatsEvent_writeString(event, sessionId.c_str());
+    AStatsEvent_writeString(event, codec.c_str());
 
     int32_t channelCount = -1;
     if (item->getInt32("android.media.mediacodec.channelCount", &channelCount)) {
@@ -389,60 +389,6 @@ bool statsd_codec(const std::shared_ptr<const mediametrics::Item>& item,
         metrics_proto.set_original_video_qp_b_max(qpBMaxOri);
     }
     AStatsEvent_writeInt32(event, qpBMaxOri);
-
-    int32_t configColorStandard = -1;
-    if (item->getInt32("android.media.mediacodec.config-color-standard", &configColorStandard)) {
-        metrics_proto.set_config_color_standard(configColorStandard);
-    }
-    AStatsEvent_writeInt32(event, configColorStandard);
-
-    int32_t configColorRange = -1;
-    if (item->getInt32("android.media.mediacodec.config-color-range", &configColorRange)) {
-        metrics_proto.set_config_color_range(configColorRange);
-    }
-    AStatsEvent_writeInt32(event, configColorRange);
-
-    int32_t configColorTransfer = -1;
-    if (item->getInt32("android.media.mediacodec.config-color-transfer", &configColorTransfer)) {
-        metrics_proto.set_config_color_transfer(configColorTransfer);
-    }
-    AStatsEvent_writeInt32(event, configColorTransfer);
-
-    int32_t parsedColorStandard = -1;
-    if (item->getInt32("android.media.mediacodec.parsed-color-standard", &parsedColorStandard)) {
-        metrics_proto.set_parsed_color_standard(parsedColorStandard);
-    }
-    AStatsEvent_writeInt32(event, parsedColorStandard);
-
-    int32_t parsedColorRange = -1;
-    if (item->getInt32("android.media.mediacodec.parsed-color-range", &parsedColorRange)) {
-        metrics_proto.set_parsed_color_range(parsedColorRange);
-    }
-    AStatsEvent_writeInt32(event, parsedColorRange);
-
-    int32_t parsedColorTransfer = -1;
-    if (item->getInt32("android.media.mediacodec.parsed-color-transfer", &parsedColorTransfer)) {
-        metrics_proto.set_parsed_color_transfer(parsedColorTransfer);
-    }
-    AStatsEvent_writeInt32(event, parsedColorTransfer);
-
-    int32_t hdrStaticInfo = -1;
-    if (item->getInt32("android.media.mediacodec.hdr-static-info", &hdrStaticInfo)) {
-        metrics_proto.set_hdr_static_info(hdrStaticInfo);
-    }
-    AStatsEvent_writeInt32(event, hdrStaticInfo);
-
-    int32_t hdr10PlusInfo = -1;
-    if (item->getInt32("android.media.mediacodec.hdr10-plus-info", &hdr10PlusInfo)) {
-        metrics_proto.set_hdr10_plus_info(hdr10PlusInfo);
-    }
-    AStatsEvent_writeInt32(event, hdr10PlusInfo);
-
-    int32_t hdrFormat= -1;
-    if (item->getInt32("android.media.mediacodec.hdr-format", &hdrFormat)) {
-        metrics_proto.set_hdr_format(hdrFormat);
-    }
-    AStatsEvent_writeInt32(event, hdrFormat);
 
     int err = AStatsEvent_write(event);
     if (err < 0) {

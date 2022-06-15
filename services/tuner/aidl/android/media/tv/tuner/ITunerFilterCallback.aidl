@@ -16,8 +16,7 @@
 
 package android.media.tv.tuner;
 
-import android.hardware.tv.tuner.DemuxFilterEvent;
-import android.hardware.tv.tuner.DemuxFilterStatus;
+import android.media.tv.tuner.TunerFilterEvent;
 
 /**
  * TunerFilterCallback interface handles tuner filter related callbacks.
@@ -28,10 +27,10 @@ interface ITunerFilterCallback {
     /**
      * Notify the client a new status of a filter.
      */
-    void onFilterStatus(in DemuxFilterStatus status);
+    void onFilterStatus(int status);
 
     /**
      * Notify the client that a new filter event happened.
      */
-    void onFilterEvent(in DemuxFilterEvent[] events);
+    void onFilterEvent(in TunerFilterEvent[] filterEvent);
 }

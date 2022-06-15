@@ -32,7 +32,7 @@
 #include <statslog.h>
 
 #include "MediaMetricsService.h"
-#include "ValidateId.h"
+#include "StringUtils.h"
 #include "frameworks/proto_logging/stats/message/mediametrics_message.pb.h"
 #include "iface_statsd.h"
 
@@ -80,20 +80,16 @@ bool statsd_audiorecord(const std::shared_ptr<const mediametrics::Item>& item,
     }
 
     int64_t created_millis = -1;
-    // not currently sent from client.
     if (item->getInt64("android.media.audiorecord.createdMs", &created_millis)) {
         metrics_proto.set_created_millis(created_millis);
     }
 
     int64_t duration_millis = -1;
-    double durationMs = 0.;
-    if (item->getDouble("android.media.audiorecord.durationMs", &durationMs)) {
-        duration_millis = (int64_t)durationMs;
+    if (item->getInt64("android.media.audiorecord.durationMs", &duration_millis)) {
         metrics_proto.set_duration_millis(duration_millis);
     }
 
     int32_t count = -1;
-    // not currently sent from client.  (see start count instead).
     if (item->getInt32("android.media.audiorecord.n", &count)) {
         metrics_proto.set_count(count);
     }
@@ -133,7 +129,7 @@ bool statsd_audiorecord(const std::shared_ptr<const mediametrics::Item>& item,
     }
 
     int64_t start_count = -1;
-    if (item->getInt64("android.media.audiorecord.startCount", &start_count)) {
+    if (item->getInt64("android.media.audiorecord.startcount", &start_count)) {
         metrics_proto.set_start_count(start_count);
     }
 
@@ -147,7 +143,8 @@ bool statsd_audiorecord(const std::shared_ptr<const mediametrics::Item>& item,
     // log_session_id (string)
     std::string logSessionId;
     (void)item->getString("android.media.audiorecord.logSessionId", &logSessionId);
-    const auto log_session_id = mediametrics::ValidateId::get()->validateId(logSessionId);
+    const auto log_session_id =
+            mediametrics::stringutils::sanitizeLogSessionId(logSessionId);
 
     android::util::BytesField bf_serialized( serialized.c_str(), serialized.size());
     int result = android::util::stats_write(android::util::MEDIAMETRICS_AUDIORECORD_REPORTED,

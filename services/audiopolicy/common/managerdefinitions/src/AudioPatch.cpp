@@ -20,9 +20,7 @@
 #include "AudioPatch.h"
 #include "TypeConverter.h"
 
-#include <android-base/stringprintf.h>
 #include <log/log.h>
-#include <media/AudioDeviceTypeAddr.h>
 #include <utils/String8.h>
 
 namespace android {
@@ -39,21 +37,20 @@ static void dumpPatchEndpoints(
 {
     for (int i = 0; i < count; ++i) {
         const audio_port_config &cfg = cfgs[i];
-        dst->appendFormat("%*s[%s %d] ", spaces, "", prefix, i + 1);
+        dst->appendFormat("%*s  [%s %d] ", spaces, "", prefix, i + 1);
         if (cfg.type == AUDIO_PORT_TYPE_DEVICE) {
-            AudioDeviceTypeAddr device(cfg.ext.device.type, cfg.ext.device.address);
-            dst->appendFormat("Device Port ID: %d; {%s}",
-                    cfg.id, device.toString(true /*includeSensitiveInfo*/).c_str());
+            dst->appendFormat("Device ID %d %s", cfg.id, toString(cfg.ext.device.type).c_str());
         } else {
-            dst->appendFormat("Mix Port ID: %d; I/O handle: %d;", cfg.id, cfg.ext.mix.handle);
+            dst->appendFormat("Mix ID %d I/O handle %d", cfg.id, cfg.ext.mix.handle);
         }
         dst->append("\n");
     }
 }
 
-void AudioPatch::dump(String8 *dst, int spaces) const
+void AudioPatch::dump(String8 *dst, int spaces, int index) const
 {
-    dst->appendFormat("owner uid %4d; handle %2d; af handle %2d\n", mUid, mHandle, mAfPatchHandle);
+    dst->appendFormat("%*sPatch %d: owner uid %4d, handle %2d, af handle %2d\n",
+            spaces, "", index + 1, mUid, mHandle, mAfPatchHandle);
     dumpPatchEndpoints(dst, spaces, "src ", mPatch.num_sources, mPatch.sources);
     dumpPatchEndpoints(dst, spaces, "sink", mPatch.num_sinks, mPatch.sinks);
 }
@@ -138,11 +135,9 @@ status_t AudioPatchCollection::listAudioPatches(unsigned int *num_patches,
 
 void AudioPatchCollection::dump(String8 *dst) const
 {
-    dst->appendFormat("\n Audio Patches (%zu):\n", size());
+    dst->append("\nAudio Patches:\n");
     for (size_t i = 0; i < size(); i++) {
-        const std::string prefix = base::StringPrintf("  %zu. ", i + 1);
-        dst->appendFormat("%s", prefix.c_str());
-        valueAt(i)->dump(dst, prefix.size());
+        valueAt(i)->dump(dst, 2, i);
     }
 }
 

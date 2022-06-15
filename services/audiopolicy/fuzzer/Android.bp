@@ -62,7 +62,4 @@ cc_fuzz {
         "libaudiopolicymanager_interface_headers",
     ],
     data: [":audiopolicyfuzzer_configuration_files"],
-    fuzz_config: {
-       cc: ["mnaganov@google.com"],
-    },
 }

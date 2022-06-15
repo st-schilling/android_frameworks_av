@@ -20,8 +20,6 @@
 
 #include <C2Debug.h>
 #include <C2PlatformSupport.h>
-#include <Codec2BufferUtils.h>
-#include <Codec2CommonUtils.h>
 #include <Codec2Mapper.h>
 #include <SimpleC2Interface.h>
 #include <log/log.h>
@@ -29,6 +27,11 @@
 #include <media/stagefright/foundation/MediaDefs.h>
 
 namespace android {
+namespace {
+
+constexpr uint8_t NEUTRAL_UV_VALUE = 128;
+
+}  // namespace
 
 // codecname set and passed in as a compile flag from Android.bp
 constexpr char COMPONENT_NAME[] = CODECNAME;
@@ -191,23 +194,11 @@ class C2SoftGav1Dec::IntfImpl : public SimpleInterface<void>::BaseParams {
               .withSetter(ColorAspectsSetter, mDefaultColorAspects, mCodedColorAspects)
               .build());
 
-    std::vector<uint32_t> pixelFormats = {HAL_PIXEL_FORMAT_YCBCR_420_888};
-    if (isHalPixelFormatSupported((AHardwareBuffer_Format)HAL_PIXEL_FORMAT_YCBCR_P010)) {
-        pixelFormats.push_back(HAL_PIXEL_FORMAT_YCBCR_P010);
-    }
-    // If color format surface isn't added to supported formats, there is no way to know
-    // when the color-format is configured to surface. This is necessary to be able to
-    // choose 10-bit format while decoding 10-bit clips in surface mode.
-    pixelFormats.push_back(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED);
-
     // TODO: support more formats?
-    addParameter(
-            DefineParam(mPixelFormat, C2_PARAMKEY_PIXEL_FORMAT)
-            .withDefault(new C2StreamPixelFormatInfo::output(
-                              0u, HAL_PIXEL_FORMAT_YCBCR_420_888))
-            .withFields({C2F(mPixelFormat, value).oneOf(pixelFormats)})
-            .withSetter((Setter<decltype(*mPixelFormat)>::StrictValueWithNoDeps))
-            .build());
+    addParameter(DefineParam(mPixelFormat, C2_PARAMKEY_PIXEL_FORMAT)
+                     .withConstValue(new C2StreamPixelFormatInfo::output(
+                         0u, HAL_PIXEL_FORMAT_YCBCR_420_888))
+                     .build());
   }
 
   static C2R SizeSetter(bool mayBlock,
@@ -328,9 +319,6 @@ class C2SoftGav1Dec::IntfImpl : public SimpleInterface<void>::BaseParams {
     return C2R::Ok();
   }
 
-  // unsafe getters
-  std::shared_ptr<C2StreamPixelFormatInfo::output> getPixelFormat_l() const { return mPixelFormat; }
-
  private:
   std::shared_ptr<C2StreamProfileLevelInfo::input> mProfileLevel;
   std::shared_ptr<C2StreamPictureSizeInfo::output> mSize;
@@ -351,7 +339,8 @@ C2SoftGav1Dec::C2SoftGav1Dec(const char *name, c2_node_id_t id,
           std::make_shared<SimpleInterface<IntfImpl>>(name, id, intfImpl)),
       mIntf(intfImpl),
       mCodecCtx(nullptr) {
-  mTimeStart = mTimeEnd = systemTime();
+  gettimeofday(&mTimeStart, nullptr);
+  gettimeofday(&mTimeEnd, nullptr);
 }
 
 C2SoftGav1Dec::~C2SoftGav1Dec() { onRelease(); }
@@ -418,11 +407,6 @@ static int GetCPUCoreCount() {
 bool C2SoftGav1Dec::initDecoder() {
   mSignalledError = false;
   mSignalledOutputEos = false;
-  mHalPixelFormat = HAL_PIXEL_FORMAT_YV12;
-  {
-      IntfImpl::Lock lock = mIntf->lock();
-      mPixelFormatInfo = mIntf->getPixelFormat_l();
-  }
   mCodecCtx.reset(new libgav1::Decoder());
 
   if (mCodecCtx == nullptr) {
@@ -526,17 +510,19 @@ void C2SoftGav1Dec::process(const std::unique_ptr<C2Work> &work,
   int64_t frameIndex = work->input.ordinal.frameIndex.peekll();
   if (inSize) {
     uint8_t *bitstream = const_cast<uint8_t *>(rView.data() + inOffset);
+    int32_t decodeTime = 0;
+    int32_t delay = 0;
 
-    mTimeStart = systemTime();
-    nsecs_t delay = mTimeStart - mTimeEnd;
+    GETTIME(&mTimeStart, nullptr);
+    TIME_DIFF(mTimeEnd, mTimeStart, delay);
 
     const Libgav1StatusCode status =
         mCodecCtx->EnqueueFrame(bitstream, inSize, frameIndex,
                                 /*buffer_private_data=*/nullptr);
 
-    mTimeEnd = systemTime();
-    nsecs_t decodeTime = mTimeEnd - mTimeStart;
-    ALOGV("decodeTime=%4" PRId64 " delay=%4" PRId64 "\n", decodeTime, delay);
+    GETTIME(&mTimeEnd, nullptr);
+    TIME_DIFF(mTimeStart, mTimeEnd, decodeTime);
+    ALOGV("decodeTime=%4d delay=%4d\n", decodeTime, delay);
 
     if (status != kLibgav1StatusOk) {
       ALOGE("av1 decoder failed to decode frame. status: %d.", status);
@@ -555,6 +541,150 @@ void C2SoftGav1Dec::process(const std::unique_ptr<C2Work> &work,
     mSignalledOutputEos = true;
   } else if (!inSize) {
     fillEmptyWork(work);
+  }
+}
+
+static void copyOutputBufferToYV12Frame(uint8_t *dstY, uint8_t *dstU, uint8_t *dstV,
+                                        const uint8_t *srcY, const uint8_t *srcU, const uint8_t *srcV,
+                                        size_t srcYStride, size_t srcUStride, size_t srcVStride,
+                                        size_t dstYStride, size_t dstUVStride,
+                                        uint32_t width, uint32_t height,
+                                        bool isMonochrome) {
+
+  for (size_t i = 0; i < height; ++i) {
+    memcpy(dstY, srcY, width);
+    srcY += srcYStride;
+    dstY += dstYStride;
+  }
+
+  if (isMonochrome) {
+    // Fill with neutral U/V values.
+    for (size_t i = 0; i < (height + 1) / 2; ++i) {
+      memset(dstV, NEUTRAL_UV_VALUE, (width + 1) / 2);
+      memset(dstU, NEUTRAL_UV_VALUE, (width + 1) / 2);
+      dstV += dstUVStride;
+      dstU += dstUVStride;
+    }
+    return;
+  }
+
+  for (size_t i = 0; i < (height + 1) / 2; ++i) {
+    memcpy(dstV, srcV, (width + 1) / 2);
+    srcV += srcVStride;
+    dstV += dstUVStride;
+  }
+
+  for (size_t i = 0; i < (height + 1) / 2; ++i) {
+    memcpy(dstU, srcU, (width + 1) / 2);
+    srcU += srcUStride;
+    dstU += dstUVStride;
+  }
+}
+
+static void convertYUV420Planar16ToY410(uint32_t *dst, const uint16_t *srcY,
+                                        const uint16_t *srcU,
+                                        const uint16_t *srcV, size_t srcYStride,
+                                        size_t srcUStride, size_t srcVStride,
+                                        size_t dstStride, size_t width,
+                                        size_t height) {
+  // Converting two lines at a time, slightly faster
+  for (size_t y = 0; y < height; y += 2) {
+    uint32_t *dstTop = (uint32_t *)dst;
+    uint32_t *dstBot = (uint32_t *)(dst + dstStride);
+    uint16_t *ySrcTop = (uint16_t *)srcY;
+    uint16_t *ySrcBot = (uint16_t *)(srcY + srcYStride);
+    uint16_t *uSrc = (uint16_t *)srcU;
+    uint16_t *vSrc = (uint16_t *)srcV;
+
+    uint32_t u01, v01, y01, y23, y45, y67, uv0, uv1;
+    size_t x = 0;
+    for (; x < width - 3; x += 4) {
+      u01 = *((uint32_t *)uSrc);
+      uSrc += 2;
+      v01 = *((uint32_t *)vSrc);
+      vSrc += 2;
+
+      y01 = *((uint32_t *)ySrcTop);
+      ySrcTop += 2;
+      y23 = *((uint32_t *)ySrcTop);
+      ySrcTop += 2;
+      y45 = *((uint32_t *)ySrcBot);
+      ySrcBot += 2;
+      y67 = *((uint32_t *)ySrcBot);
+      ySrcBot += 2;
+
+      uv0 = (u01 & 0x3FF) | ((v01 & 0x3FF) << 20);
+      uv1 = (u01 >> 16) | ((v01 >> 16) << 20);
+
+      *dstTop++ = 3 << 30 | ((y01 & 0x3FF) << 10) | uv0;
+      *dstTop++ = 3 << 30 | ((y01 >> 16) << 10) | uv0;
+      *dstTop++ = 3 << 30 | ((y23 & 0x3FF) << 10) | uv1;
+      *dstTop++ = 3 << 30 | ((y23 >> 16) << 10) | uv1;
+
+      *dstBot++ = 3 << 30 | ((y45 & 0x3FF) << 10) | uv0;
+      *dstBot++ = 3 << 30 | ((y45 >> 16) << 10) | uv0;
+      *dstBot++ = 3 << 30 | ((y67 & 0x3FF) << 10) | uv1;
+      *dstBot++ = 3 << 30 | ((y67 >> 16) << 10) | uv1;
+    }
+
+    // There should be at most 2 more pixels to process. Note that we don't
+    // need to consider odd case as the buffer is always aligned to even.
+    if (x < width) {
+      u01 = *uSrc;
+      v01 = *vSrc;
+      y01 = *((uint32_t *)ySrcTop);
+      y45 = *((uint32_t *)ySrcBot);
+      uv0 = (u01 & 0x3FF) | ((v01 & 0x3FF) << 20);
+      *dstTop++ = ((y01 & 0x3FF) << 10) | uv0;
+      *dstTop++ = ((y01 >> 16) << 10) | uv0;
+      *dstBot++ = ((y45 & 0x3FF) << 10) | uv0;
+      *dstBot++ = ((y45 >> 16) << 10) | uv0;
+    }
+
+    srcY += srcYStride * 2;
+    srcU += srcUStride;
+    srcV += srcVStride;
+    dst += dstStride * 2;
+  }
+}
+
+static void convertYUV420Planar16ToYUV420Planar(
+    uint8_t *dstY, uint8_t *dstU, uint8_t *dstV,
+    const uint16_t *srcY, const uint16_t *srcU, const uint16_t *srcV,
+    size_t srcYStride, size_t srcUStride, size_t srcVStride,
+    size_t dstYStride, size_t dstUVStride,
+    size_t width, size_t height, bool isMonochrome) {
+
+  for (size_t y = 0; y < height; ++y) {
+    for (size_t x = 0; x < width; ++x) {
+      dstY[x] = (uint8_t)(srcY[x] >> 2);
+    }
+
+    srcY += srcYStride;
+    dstY += dstYStride;
+  }
+
+  if (isMonochrome) {
+    // Fill with neutral U/V values.
+    for (size_t y = 0; y < (height + 1) / 2; ++y) {
+      memset(dstV, NEUTRAL_UV_VALUE, (width + 1) / 2);
+      memset(dstU, NEUTRAL_UV_VALUE, (width + 1) / 2);
+      dstV += dstUVStride;
+      dstU += dstUVStride;
+    }
+    return;
+  }
+
+  for (size_t y = 0; y < (height + 1) / 2; ++y) {
+    for (size_t x = 0; x < (width + 1) / 2; ++x) {
+      dstU[x] = (uint8_t)(srcU[x] >> 2);
+      dstV[x] = (uint8_t)(srcV[x] >> 2);
+    }
+
+    srcU += srcUStride;
+    srcV += srcVStride;
+    dstU += dstUVStride;
+    dstV += dstUVStride;
   }
 }
 
@@ -646,44 +776,24 @@ bool C2SoftGav1Dec::outputBuffer(const std::shared_ptr<C2BlockPool> &pool,
 
   std::shared_ptr<C2GraphicBlock> block;
   uint32_t format = HAL_PIXEL_FORMAT_YV12;
-  std::shared_ptr<C2StreamColorAspectsInfo::output> codedColorAspects;
-  if (buffer->bitdepth == 10 && mPixelFormatInfo->value != HAL_PIXEL_FORMAT_YCBCR_420_888) {
+  if (buffer->bitdepth == 10) {
     IntfImpl::Lock lock = mIntf->lock();
-    codedColorAspects = mIntf->getColorAspects_l();
-    bool allowRGBA1010102 = false;
+    std::shared_ptr<C2StreamColorAspectsInfo::output> codedColorAspects =
+        mIntf->getColorAspects_l();
+
     if (codedColorAspects->primaries == C2Color::PRIMARIES_BT2020 &&
         codedColorAspects->matrix == C2Color::MATRIX_BT2020 &&
         codedColorAspects->transfer == C2Color::TRANSFER_ST2084) {
-      allowRGBA1010102 = true;
-    }
-    format = getHalPixelFormatForBitDepth10(allowRGBA1010102);
-    if ((format == HAL_PIXEL_FORMAT_RGBA_1010102) &&
-        (buffer->image_format != libgav1::kImageFormatYuv420)) {
+      if (buffer->image_format != libgav1::kImageFormatYuv420) {
         ALOGE("Only YUV420 output is supported when targeting RGBA_1010102");
-      mSignalledError = true;
-      work->result = C2_OMITTED;
-      work->workletsProcessed = 1u;
-      return false;
+        mSignalledError = true;
+        work->result = C2_OMITTED;
+        work->workletsProcessed = 1u;
+        return false;
+      }
+      format = HAL_PIXEL_FORMAT_RGBA_1010102;
     }
   }
-
-  if (mHalPixelFormat != format) {
-    C2StreamPixelFormatInfo::output pixelFormat(0u, format);
-    std::vector<std::unique_ptr<C2SettingResult>> failures;
-    c2_status_t err = mIntf->config({&pixelFormat }, C2_MAY_BLOCK, &failures);
-    if (err == C2_OK) {
-      work->worklets.front()->output.configUpdate.push_back(
-          C2Param::Copy(pixelFormat));
-    } else {
-      ALOGE("Config update pixelFormat failed");
-      mSignalledError = true;
-      work->workletsProcessed = 1u;
-      work->result = C2_CORRUPTED;
-      return UNKNOWN_ERROR;
-    }
-    mHalPixelFormat = format;
-  }
-
   C2MemoryUsage usage = {C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE};
 
   // We always create a graphic block that is width aligned to 16 and height
@@ -727,26 +837,22 @@ bool C2SoftGav1Dec::outputBuffer(const std::shared_ptr<C2BlockPool> &pool,
     const uint16_t *srcV = (const uint16_t *)buffer->plane[2];
 
     if (format == HAL_PIXEL_FORMAT_RGBA_1010102) {
-        convertYUV420Planar16ToY410OrRGBA1010102(
-                (uint32_t *)dstY, srcY, srcU, srcV, srcYStride / 2,
-                srcUStride / 2, srcVStride / 2,
-                dstYStride / sizeof(uint32_t), mWidth, mHeight,
-                std::static_pointer_cast<const C2ColorAspectsStruct>(codedColorAspects));
-    } else if (format == HAL_PIXEL_FORMAT_YCBCR_P010) {
-        convertYUV420Planar16ToP010((uint16_t *)dstY, (uint16_t *)dstU, srcY, srcU, srcV,
-                                    srcYStride / 2, srcUStride / 2, srcVStride / 2, dstYStride / 2,
-                                    dstUVStride / 2, mWidth, mHeight, isMonochrome);
+      convertYUV420Planar16ToY410(
+          (uint32_t *)dstY, srcY, srcU, srcV, srcYStride / 2, srcUStride / 2,
+          srcVStride / 2, dstYStride / sizeof(uint32_t), mWidth, mHeight);
     } else {
-        convertYUV420Planar16ToYV12(dstY, dstU, dstV, srcY, srcU, srcV, srcYStride / 2,
-                                    srcUStride / 2, srcVStride / 2, dstYStride, dstUVStride, mWidth,
-                                    mHeight, isMonochrome);
+      convertYUV420Planar16ToYUV420Planar(
+          dstY, dstU, dstV, srcY, srcU, srcV, srcYStride / 2, srcUStride / 2,
+          srcVStride / 2, dstYStride, dstUVStride, mWidth, mHeight,
+          isMonochrome);
     }
   } else {
     const uint8_t *srcY = (const uint8_t *)buffer->plane[0];
     const uint8_t *srcU = (const uint8_t *)buffer->plane[1];
     const uint8_t *srcV = (const uint8_t *)buffer->plane[2];
-    convertYUV420Planar8ToYV12(dstY, dstU, dstV, srcY, srcU, srcV, srcYStride, srcUStride,
-                               srcVStride, dstYStride, dstUVStride, mWidth, mHeight, isMonochrome);
+    copyOutputBufferToYV12Frame(
+        dstY, dstU, dstV, srcY, srcU, srcV, srcYStride, srcUStride, srcVStride,
+        dstYStride, dstUVStride, mWidth, mHeight, isMonochrome);
   }
   finishWork(buffer->user_private_data, work, std::move(block));
   block = nullptr;

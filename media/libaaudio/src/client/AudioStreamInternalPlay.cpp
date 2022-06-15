@@ -44,6 +44,8 @@ AudioStreamInternalPlay::AudioStreamInternalPlay(AAudioServiceInterface  &servic
 
 }
 
+AudioStreamInternalPlay::~AudioStreamInternalPlay() {}
+
 constexpr int kRampMSec = 10; // time to apply a change in volume
 
 aaudio_result_t AudioStreamInternalPlay::open(const AudioStreamBuilder &builder) {
@@ -52,10 +54,7 @@ aaudio_result_t AudioStreamInternalPlay::open(const AudioStreamBuilder &builder)
         result = mFlowGraph.configure(getFormat(),
                              getSamplesPerFrame(),
                              getDeviceFormat(),
-                             getDeviceChannelCount(),
-                             getRequireMonoBlend(),
-                             getAudioBalance(),
-                             (getSharingMode() == AAUDIO_SHARING_MODE_EXCLUSIVE));
+                             getDeviceChannelCount());
 
         if (result != AAUDIO_OK) {
             safeReleaseClose();
@@ -116,7 +115,7 @@ void AudioStreamInternalPlay::advanceClientToMatchServerPosition(int32_t serverM
 }
 
 void AudioStreamInternalPlay::onFlushFromServer() {
-    advanceClientToMatchServerPosition(0 /*serverMargin*/);
+    advanceClientToMatchServerPosition();
 }
 
 // Write the data, block if needed and timeoutMillis > 0
@@ -202,18 +201,10 @@ aaudio_result_t AudioStreamInternalPlay::processDataNow(void *buffer, int32_t nu
                 break;
             case AAUDIO_STREAM_STATE_STARTED:
             {
-                // Calculate when there will be room available to write to the buffer.
-                // If the appBufferSize is smaller than the endpointBufferSize then
-                // we will have room to write data beyond the appBufferSize.
-                // That is a technique used to reduce glitches without adding latency.
-                const int32_t appBufferSize = getBufferSize();
-                // The endpoint buffer size is set to the maximum that can be written.
-                // If we use it then we must carve out some room to write data when we wake up.
-                const int32_t endBufferSize = mAudioEndpoint->getBufferSizeInFrames()
-                        - getFramesPerBurst();
-                const int32_t bestBufferSize = std::min(appBufferSize, endBufferSize);
-                int64_t targetReadPosition = mAudioEndpoint->getDataWriteCounter() - bestBufferSize;
-                wakeTime = mClockModel.convertPositionToTime(targetReadPosition);
+                // Sleep until the readCounter catches up and we only have
+                // the getBufferSize() frames of data sitting in the buffer.
+                int64_t nextReadPosition = mAudioEndpoint->getDataWriteCounter() - getBufferSize();
+                wakeTime = mClockModel.convertPositionToTime(nextReadPosition);
             }
                 break;
             default:
@@ -290,7 +281,7 @@ void *AudioStreamInternalPlay::callbackLoop() {
     ALOGD("%s() entering >>>>>>>>>>>>>>>", __func__);
     aaudio_result_t result = AAUDIO_OK;
     aaudio_data_callback_result_t callbackResult = AAUDIO_CALLBACK_RESULT_CONTINUE;
-    if (!isDataCallbackSet()) return nullptr;
+    if (!isDataCallbackSet()) return NULL;
     int64_t timeoutNanos = calculateReasonableTimeout(mCallbackFrames);
 
     // result might be a frame count
@@ -318,7 +309,7 @@ void *AudioStreamInternalPlay::callbackLoop() {
 
     ALOGD("%s() exiting, result = %d, isActive() = %d <<<<<<<<<<<<<<",
           __func__, result, (int) isActive());
-    return nullptr;
+    return NULL;
 }
 
 //------------------------------------------------------------------------------

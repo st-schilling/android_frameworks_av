@@ -21,9 +21,7 @@
 
 namespace android {
 
-namespace gui {
-    class ISurfaceComposer;
-}
+class ISurfaceComposer;
 
 struct VideoFrameScheduler : public VideoFrameSchedulerBase {
     VideoFrameScheduler();
@@ -34,7 +32,7 @@ protected:
 
 private:
     void updateVsync() override;
-    sp<gui::ISurfaceComposer> mComposer;
+    sp<ISurfaceComposer> mComposer;
 };
 
 }  // namespace android

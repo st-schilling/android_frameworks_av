@@ -236,11 +236,6 @@ class CameraHelper {
         return ACameraCaptureSession_capture(mSession, &mCaptureCallbacks, 1, &mStillRequest,
                                              &seqId);
     }
-    int takePicture2() {
-        int seqId;
-        return ACameraCaptureSession_captureV2(mSession, &mCaptureCallbacksV2, 1,
-                &mStillRequest, &seqId);
-    }
 
     int takeLogicalCameraPicture() {
         int seqId;
@@ -248,31 +243,15 @@ class CameraHelper {
                 1, &mStillRequest, &seqId);
     }
 
-    int takeLogicalCameraPicture2() {
-        int seqId;
-        return ACameraCaptureSession_logicalCamera_captureV2(mSession,
-                &mLogicalCaptureCallbacksV2, 1, &mStillRequest, &seqId);
-    }
-
     bool checkCallbacks(int pictureCount) {
         std::lock_guard<std::mutex> lock(mMutex);
         if (mCompletedCaptureCallbackCount != pictureCount) {
-            ALOGE("Completed capture callback count not as expected. expected %d actual %d",
+            ALOGE("Completed capture callaback count not as expected. expected %d actual %d",
                   pictureCount, mCompletedCaptureCallbackCount);
             return false;
         }
         return true;
     }
-    bool checkCallbacksV2(int pictureCount) {
-        std::lock_guard<std::mutex> lock(mMutex);
-        if (mCaptureStartedCallbackCount != pictureCount) {
-            ALOGE("Capture started callback count not as expected. expected %d actual %d",
-                  pictureCount, mCaptureStartedCallbackCount);
-            return false;
-        }
-        return true;
-    }
-
 
    private:
     ACameraDevice_StateCallbacks mDeviceCb{this, nullptr, nullptr};
@@ -297,7 +276,6 @@ class CameraHelper {
     const char* mCameraId;
     ACameraManager* mCameraManager;
     int mCompletedCaptureCallbackCount = 0;
-    int mCaptureStartedCallbackCount = 0;
     std::mutex mMutex;
     ACameraCaptureSession_captureCallbacks mCaptureCallbacks = {
         // TODO: Add tests for other callbacks
@@ -315,25 +293,8 @@ class CameraHelper {
         nullptr, // onCaptureSequenceAborted
         nullptr, // onCaptureBufferLost
     };
-    ACameraCaptureSession_captureCallbacksV2 mCaptureCallbacksV2 = {
-        this, // context
-        [](void* ctx , ACameraCaptureSession *,const ACaptureRequest *, int64_t,
-              int64_t frameNumber ) {
-            CameraHelper *ch = static_cast<CameraHelper *>(ctx);
-            ASSERT_TRUE(frameNumber >= 0);
-            std::lock_guard<std::mutex> lock(ch->mMutex);
-            ch->mCaptureStartedCallbackCount++;
-        },
-        nullptr, // onCaptureProgressed
-        nullptr, // onCaptureCompleted
-        nullptr, // onCaptureFailed
-        nullptr, // onCaptureSequenceCompleted
-        nullptr, // onCaptureSequenceAborted
-        nullptr, // onCaptureBufferLost
-    };
 
     std::vector<std::string> mPhysicalCameraIds;
-
     ACameraCaptureSession_logicalCamera_captureCallbacks mLogicalCaptureCallbacks = {
         // TODO: Add tests for other callbacks
         this, // context
@@ -375,23 +336,6 @@ class CameraHelper {
         nullptr, // onCaptureSequenceAborted
         nullptr, // onCaptureBufferLost
     };
-    ACameraCaptureSession_logicalCamera_captureCallbacksV2 mLogicalCaptureCallbacksV2 = {
-        this, // context
-        [](void* ctx , ACameraCaptureSession *,const ACaptureRequest *, int64_t,
-                int64_t frameNumber) {
-            CameraHelper *ch = static_cast<CameraHelper *>(ctx);
-            ASSERT_TRUE(frameNumber >= 0);
-            std::lock_guard<std::mutex> lock(ch->mMutex);
-            ch->mCaptureStartedCallbackCount++;
-        },
-        nullptr, // onCaptureProgressed
-        nullptr, //onLogicalCaptureCompleted
-        nullptr, //onLogicalCpatureFailed
-        nullptr, // onCaptureSequenceCompleted
-        nullptr, // onCaptureSequenceAborted
-        nullptr, // onCaptureBufferLost
-    };
-
 };
 
 class ImageReaderTestCase {
@@ -626,7 +570,7 @@ class AImageReaderVendorTest : public ::testing::Test {
     }
 
     bool takePictures(const char* id, uint64_t readerUsage, int readerMaxImages,
-            bool readerAsync, int pictureCount, bool v2 = false) {
+            bool readerAsync, int pictureCount) {
         int ret = 0;
 
         ImageReaderTestCase testCase(
@@ -656,11 +600,7 @@ class AImageReaderVendorTest : public ::testing::Test {
         }
 
         for (int i = 0; i < pictureCount; i++) {
-            if (v2) {
-                ret = cameraHelper.takePicture2();
-            } else {
-                ret = cameraHelper.takePicture();
-            }
+            ret = cameraHelper.takePicture();
             if (ret < 0) {
                 ALOGE("Unable to take picture");
                 return false;
@@ -677,8 +617,7 @@ class AImageReaderVendorTest : public ::testing::Test {
             }
         }
         return testCase.getAcquiredImageCount() == pictureCount &&
-               v2 ? cameraHelper.checkCallbacksV2(pictureCount) :
-                    cameraHelper.checkCallbacks(pictureCount);
+                cameraHelper.checkCallbacks(pictureCount);
     }
 
     bool testTakePicturesNative(const char* id) {
@@ -687,14 +626,12 @@ class AImageReaderVendorTest : public ::testing::Test {
             for (auto& readerMaxImages : {1, 4, 8}) {
                 for (auto& readerAsync : {true, false}) {
                     for (auto& pictureCount : {1, 4, 8}) {
-                        for ( auto & v2 : {true, false}) {
-                            if (!takePictures(id, readerUsage, readerMaxImages,
-                                    readerAsync, pictureCount, v2)) {
-                                ALOGE("Test takePictures failed for test case usage=%" PRIu64
-                                      ", maxImages=%d, async=%d, pictureCount=%d",
-                                      readerUsage, readerMaxImages, readerAsync, pictureCount);
-                                return false;
-                            }
+                        if (!takePictures(id, readerUsage, readerMaxImages,
+                                readerAsync, pictureCount)) {
+                            ALOGE("Test takePictures failed for test case usage=%" PRIu64
+                                  ", maxImages=%d, async=%d, pictureCount=%d",
+                                  readerUsage, readerMaxImages, readerAsync, pictureCount);
+                            return false;
                         }
                     }
                 }
@@ -788,7 +725,7 @@ class AImageReaderVendorTest : public ::testing::Test {
         return;
     }
 
-    void testLogicalCameraPhysicalStream(bool usePhysicalSettings, bool v2) {
+    void testLogicalCameraPhysicalStream(bool usePhysicalSettings) {
         const char* cameraId = nullptr;
         ACameraMetadata* staticMetadata = nullptr;
         std::vector<const char*> physicalCameraIds;
@@ -835,12 +772,7 @@ class AImageReaderVendorTest : public ::testing::Test {
         }
 
         for (int i = 0; i < pictureCount; i++) {
-            if (v2) {
-              ret = cameraHelper.takeLogicalCameraPicture2();
-            }
-            else {
-              ret = cameraHelper.takeLogicalCameraPicture();
-            }
+            ret = cameraHelper.takeLogicalCameraPicture();
             ASSERT_EQ(ret, 0);
         }
 
@@ -861,11 +793,8 @@ class AImageReaderVendorTest : public ::testing::Test {
             ALOGI("Testing window %p", testCase->getNativeWindow());
             ASSERT_EQ(testCase->getAcquiredImageCount(), pictureCount);
         }
-        if (v2) {
-            ASSERT_TRUE(cameraHelper.checkCallbacksV2(pictureCount));
-        } else {
-            ASSERT_TRUE(cameraHelper.checkCallbacks(pictureCount));
-        }
+
+        ASSERT_TRUE(cameraHelper.checkCallbacks(pictureCount));
 
         ACameraMetadata_free(staticMetadata);
     }
@@ -905,10 +834,8 @@ TEST_F(AImageReaderVendorTest, CreateWindowNativeHandle) {
 }
 
 TEST_F(AImageReaderVendorTest, LogicalCameraPhysicalStream) {
-    for (auto & v2 : {true, false}) {
-        testLogicalCameraPhysicalStream(false/*usePhysicalSettings*/, v2);
-        testLogicalCameraPhysicalStream(true/*usePhysicalSettings*/, v2);
-    }
+    testLogicalCameraPhysicalStream(false/*usePhysicalSettings*/);
+    testLogicalCameraPhysicalStream(true/*usePhysicalSettings*/);
 }
 
 }  // namespace
